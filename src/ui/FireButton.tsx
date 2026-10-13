@@ -1,36 +1,42 @@
-import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { CSS } from '../config/constants';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { BTN, CSS } from '../config/constants';
 import { inputState } from '../core/state';
 
 /**
- * Botão de disparo: PRESSIONAR E SEGURAR = fogo automático do LEGATO.
+ * Botão de disparo — APENAS VISUAL (Etapa 10).
+ * O toque é detectado pela camada única de input; aqui só refletimos o
+ * estado (pressionado = atirando) por polling barato a 100 ms.
  */
 export default function FireButton() {
+  const [pressed, setPressed] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setPressed(inputState.firing), 100);
+    return () => clearInterval(id);
+  }, []);
+
   return (
-    <Pressable
-      onPressIn={() => {
-        inputState.firing = true;
-      }}
-      onPressOut={() => {
-        inputState.firing = false;
-      }}
-      style={({ pressed }) => [styles.btn, pressed ? styles.pressed : styles.idle]}
+    <View
+      pointerEvents="none"
+      style={[styles.btn, pressed ? styles.pressed : styles.idle]}
     >
       <View style={styles.ring} />
       <View style={styles.dot} />
-    </Pressable>
+    </View>
   );
 }
+
+const S = BTN.FIRE.size;
 
 const styles = StyleSheet.create({
   btn: {
     position: 'absolute',
-    right: 34,
-    bottom: 30,
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+    right: BTN.FIRE.right,
+    bottom: BTN.FIRE.bottom,
+    width: S,
+    height: S,
+    borderRadius: S / 2,
     borderWidth: 2,
     borderColor: CSS.TEAL,
     alignItems: 'center',

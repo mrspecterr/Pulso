@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { AGENTS, CSS, type TracoKey } from '../config/constants';
-import { inputState, sessionState, tracoState } from '../core/state';
+import { StyleSheet, Text, View } from 'react-native';
+import { AGENTS, BTN, CSS, type TracoKey } from '../config/constants';
+import { sessionState, tracoState } from '../core/state';
 
 const MONO = 'monospace';
 
@@ -31,13 +31,12 @@ function read(): Snap {
 }
 
 /**
- * TracoButtons (Etapa 7/8) — botões dos dois Traços do agente em jogo.
- * O kit vem do agente escolhido na sessão (MUDO, ECO ou GRAVE); cada botão
- * mostra usos restantes e o cooldown, quando houver.
+ * TracoButtons (Etapa 7/8) — APENAS VISUAL (Etapa 10).
+ * Os toques chegam pela camada única de input; aqui refletimos usos e
+ * recarga por polling (mesma cadência de antes).
  */
 export default function TracoButtons() {
   const [s, setS] = useState<Snap>(() => read());
-  // agente fixo por partida; useState inicial evita re-render se mudar
   const [agentKey] = useState(() => sessionState.agent);
   const A = AGENTS[agentKey];
 
@@ -51,19 +50,17 @@ export default function TracoButtons() {
       {A.tracos.map((spec, i) => {
         const ready = s.uses[spec.key] > 0 && s.cdLeft[spec.key] <= 0;
         const color = TRACO_COLOR[spec.key];
+        const pos = i === 0 ? BTN.TRACO1 : BTN.TRACO2;
         return (
-          <Pressable
+          <View
             key={spec.key}
-            style={({ pressed }) => [
+            pointerEvents="none"
+            style={[
               styles.btn,
-              i === 0 ? styles.first : styles.second,
+              { right: pos.right, bottom: pos.bottom, width: pos.w, height: pos.h },
               { borderColor: ready ? color : 'rgba(122,139,153,0.35)' },
               !ready && styles.off,
-              pressed && ready ? styles.pressed : null,
             ]}
-            onPressIn={() => {
-              if (ready) inputState.tracoQueued = spec.key;
-            }}
           >
             <Text style={[styles.glyph, { color: ready ? color : CSS.TEXT_DIM }]}>
               {spec.glyph}
@@ -76,7 +73,7 @@ export default function TracoButtons() {
             ) : (
               <Text style={styles.uses}>×{s.uses[spec.key]}</Text>
             )}
-          </Pressable>
+          </View>
         );
       })}
     </>
@@ -86,20 +83,13 @@ export default function TracoButtons() {
 const styles = StyleSheet.create({
   btn: {
     position: 'absolute',
-    right: 34,
-    width: 72,
-    height: 72,
     borderRadius: 14,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(9,13,18,0.82)',
   },
-  // primeiro Traço junto da munição; segundo logo acima
-  first: { bottom: 208 },
-  second: { bottom: 290 },
   off: { opacity: 0.55 },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
   glyph: { fontSize: 18, lineHeight: 22 },
   label: { fontFamily: MONO, fontSize: 8, letterSpacing: 1, marginTop: 1 },
   uses: { fontFamily: MONO, fontSize: 9, color: '#AFC2CE', marginTop: 1 },

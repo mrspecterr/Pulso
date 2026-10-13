@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { glowTexture, gunmetalTexture } from '../core/textures';
+import { StaticBuckets } from '../core/merge';
 import type { WeaponId } from '../config/constants';
 
 export interface WeaponAnimState {
@@ -67,8 +68,11 @@ export class WeaponSystem {
     });
     const dot = new THREE.MeshBasicMaterial({ color: 0x6bf7dd });
 
+    // peças fundidas por material (Etapa 10): o fuzil inteiro desenha em
+    // ~4 chamadas (antes eram 13); a pistola em ~3 (antes 8). As peças
+    // nunca se movem entre si — só o conjunto anima (sway/bob/recuo).
     const box = (
-      g: THREE.Group,
+      g: StaticBuckets,
       w: number,
       h: number,
       d: number,
@@ -86,40 +90,44 @@ export class WeaponSystem {
     };
 
     // ---------------- FUZIL LEGATO ----------------
+    const rifleParts = new StaticBuckets(this.rifle);
     // receiver + guarda-mão
-    box(this.rifle, 0.09, 0.11, 0.36, 0, 0, 0, gunMetal);
-    box(this.rifle, 0.078, 0.088, 0.42, 0, -0.004, -0.38, polymer);
+    box(rifleParts, 0.09, 0.11, 0.36, 0, 0, 0, gunMetal);
+    box(rifleParts, 0.078, 0.088, 0.42, 0, -0.004, -0.38, polymer);
     // cano + freio de boca
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.32, 10), accent);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.012, -0.72);
-    this.rifle.add(barrel);
-    box(this.rifle, 0.046, 0.05, 0.1, 0, 0.012, -0.85, gunMetal);
+    rifleParts.add(barrel);
+    box(rifleParts, 0.046, 0.05, 0.1, 0, 0.012, -0.85, gunMetal);
     // trilho superior + massas de mira
-    box(this.rifle, 0.05, 0.02, 0.62, 0, 0.066, -0.28, gunMetal);
-    box(this.rifle, 0.014, 0.05, 0.014, 0, 0.096, -0.5, gunMetal);
+    box(rifleParts, 0.05, 0.02, 0.62, 0, 0.066, -0.28, gunMetal);
+    box(rifleParts, 0.014, 0.05, 0.014, 0, 0.096, -0.5, gunMetal);
     // red-dot + ponto teal
-    box(this.rifle, 0.05, 0.05, 0.09, 0, 0.1, 0.02, polymer);
-    box(this.rifle, 0.013, 0.013, 0.012, 0, 0.118, -0.02, dot);
+    box(rifleParts, 0.05, 0.05, 0.09, 0, 0.1, 0.02, polymer);
+    box(rifleParts, 0.013, 0.013, 0.012, 0, 0.118, -0.02, dot);
     // carregador + punho + coronha
-    box(this.rifle, 0.058, 0.22, 0.08, 0, -0.15, -0.1, gunMetal, 0.14);
-    box(this.rifle, 0.052, 0.14, 0.06, 0, -0.13, 0.12, polymer, -0.32);
-    box(this.rifle, 0.06, 0.09, 0.2, 0, -0.005, 0.28, polymer);
-    box(this.rifle, 0.072, 0.12, 0.03, 0, -0.02, 0.38, polymer);
+    box(rifleParts, 0.058, 0.22, 0.08, 0, -0.15, -0.1, gunMetal, 0.14);
+    box(rifleParts, 0.052, 0.14, 0.06, 0, -0.13, 0.12, polymer, -0.32);
+    box(rifleParts, 0.06, 0.09, 0.2, 0, -0.005, 0.28, polymer);
+    box(rifleParts, 0.072, 0.12, 0.03, 0, -0.02, 0.38, polymer);
     // janela de ejeção (painel mais claro)
-    box(this.rifle, 0.02, 0.035, 0.1, 0.047, 0.012, -0.04, accent);
+    box(rifleParts, 0.02, 0.035, 0.1, 0.047, 0.012, -0.04, accent);
+    rifleParts.build();
     this.muzzleRifle.position.set(0, 0.012, -0.92);
     this.rifle.add(this.muzzleRifle);
 
     // ---------------- PISTOLA STACCATO ----------------
-    box(this.pistol, 0.052, 0.062, 0.27, 0, 0.02, -0.09, gunMetal);
-    box(this.pistol, 0.046, 0.036, 0.22, 0, -0.02, -0.07, polymer);
-    box(this.pistol, 0.05, 0.15, 0.056, 0, -0.1, 0.0, polymer, -0.22);
-    box(this.pistol, 0.012, 0.012, 0.06, 0, -0.048, -0.075, polymer); // guarda-mato
-    box(this.pistol, 0.012, 0.02, 0.012, 0, -0.055, -0.11, polymer);
-    box(this.pistol, 0.012, 0.018, 0.012, 0, 0.062, -0.21, gunMetal); // massa de mira
-    box(this.pistol, 0.03, 0.02, 0.02, 0, 0.06, 0.03, gunMetal);
-    box(this.pistol, 0.01, 0.01, 0.01, 0, 0.075, -0.045, dot);
+    const pistolParts = new StaticBuckets(this.pistol);
+    box(pistolParts, 0.052, 0.062, 0.27, 0, 0.02, -0.09, gunMetal);
+    box(pistolParts, 0.046, 0.036, 0.22, 0, -0.02, -0.07, polymer);
+    box(pistolParts, 0.05, 0.15, 0.056, 0, -0.1, 0.0, polymer, -0.22);
+    box(pistolParts, 0.012, 0.012, 0.06, 0, -0.048, -0.075, polymer); // guarda-mato
+    box(pistolParts, 0.012, 0.02, 0.012, 0, -0.055, -0.11, polymer);
+    box(pistolParts, 0.012, 0.018, 0.012, 0, 0.062, -0.21, gunMetal); // massa de mira
+    box(pistolParts, 0.03, 0.02, 0.02, 0, 0.06, 0.03, gunMetal);
+    box(pistolParts, 0.01, 0.01, 0.01, 0, 0.075, -0.045, dot);
+    pistolParts.build();
     this.muzzlePistol.position.set(0, 0.028, -0.24);
     this.pistol.add(this.muzzlePistol);
 

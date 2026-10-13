@@ -33,6 +33,27 @@ export const PLAYER_RADIUS = 0.32; // colisão círculo-vs-parede
 // --- zonas de toque ---
 export const LEFT_ZONE = 0.4; // 40% da largura da tela = joystick
 
+// --- botões de gameplay (Etapa 10: posições ÚNICAS para visual e para o
+// hit-test da camada de input — os dois nunca divergem) ---
+// Âncoras right/bottom em px, iguais às das folhas de estilo dos botões.
+export const BTN = {
+  FIRE: { right: 34, bottom: 30, size: 92 },
+  RELOAD: { right: 142, bottom: 38, size: 64 },
+  // dois Traços, empilhados acima da munição
+  TRACO1: { right: 34, bottom: 208, w: 72, h: 72 },
+  TRACO2: { right: 34, bottom: 290, w: 72, h: 72 },
+  // canal de plantio (retângulo ~150×68)
+  PLANT: { right: 150, bottom: 128, w: 150, h: 68 },
+  // sensibilidade e qualidade — coluna ESQUERDA, abaixo das vitais do HUD
+  // (verificadas antes da zona do joystick, que cobre toda a metade esquerda)
+  SENS: { left: 22, top: 150, w: 104, h: 34 },
+  GRAF: { left: 22, top: 192, w: 104, h: 34 },
+} as const;
+
+// folga extra ao redor do centro do botão para o hit-test (tolerância de
+// dedo em tela — os círculos de toque ficam maiores que o desenho)
+export const BTN_PAD = 14;
+
 // --- joystick ---
 export const JOY_BASE = 132; // diâmetro da base (px)
 export const JOY_KNOB = 60; // diâmetro do knob (px)
@@ -288,3 +309,25 @@ export const DEFUSE = {
   RADIUS: 1.4, // distância do Diapasão para silenciar
   RETAKE_SPEED: 2.1, // m/s correndo de volta ao site
 } as const;
+
+// --- qualidade de render (Etapa 10: desempenho) ---
+// O mundo 3D é desenhado num alvo de resolução reduzido e esticado para a
+// tela — o HUD nativo continua nítido. Sombras: mapa menor e atualizado a
+// 20 Hz (imperceptível) em vez de todo frame.
+export type QualityId = 'FLUIDO' | 'MEDIO' | 'NITIDO';
+
+export interface QualitySpec {
+  id: QualityId;
+  label: string; // mostrado no botão GRAF do HUD
+  scale: number; // escala do alvo de render (0..1)
+  shadows: boolean; // sombras dinâmicas ligadas?
+  shadowSize: number; // lado do mapa de sombra (px)
+}
+
+export const QUALITY: Record<QualityId, QualitySpec> = {
+  FLUIDO: { id: 'FLUIDO', label: 'FLUIDO', scale: 0.55, shadows: false, shadowSize: 512 },
+  MEDIO: { id: 'MEDIO', label: 'MÉDIO', scale: 0.72, shadows: true, shadowSize: 1024 },
+  NITIDO: { id: 'NITIDO', label: 'NÍTIDO', scale: 1, shadows: true, shadowSize: 2048 },
+} as const;
+
+export const QUALITY_ORDER: QualityId[] = ['FLUIDO', 'MEDIO', 'NITIDO'];

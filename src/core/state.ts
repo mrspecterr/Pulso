@@ -2,7 +2,8 @@
 // (React Native). O loop escreve; o HUD lê por polling — sem re-render
 // de componente a cada frame.
 
-import type { AgentId, TracoKey, WeaponId } from '../config/constants';
+import type { AgentId, QualityId, TracoKey, WeaponId } from '../config/constants';
+import { Animated } from 'react-native';
 import { TRACOS } from '../config/constants';
 
 export const lookState = { yaw: 0, pitch: 0 };
@@ -27,6 +28,7 @@ export const sessionState = {
 
 export const settings = {
   sensMultiplier: 1, // 1 | 1.5 | 2
+  quality: 'MEDIO' as QualityId, // Etapa 10: pipeline de desempenho
 };
 
 // Estatísticas exibidas no HUD (escritas pelo loop, lidas por polling).
@@ -41,6 +43,8 @@ export const gameStats = {
   enemiesAlive: 3, // operadores DIRAC em campo (Etapa 6)
   defusing: false, // um DIRAC está silenciando o Diapasão (Etapa 7)
   defuseProgress: 0, // 0..1 do canal de silenciamento
+  fps: 0, // média móvel do quadro (Etapa 10: diagnóstico de desempenho)
+  drawCalls: 0, // draw calls do último frame (diagnóstico)
 };
 
 // Traços do agente (Etapa 7/8) — usos por rodada + recarga, por Traço.
@@ -94,6 +98,15 @@ export const roundState = {
   chargeEndsAt: 0, // timestamp de conclusão do PULSO
   outcome: null as 'pulse' | 'time' | 'elim' | 'silenced' | null, // resultado em 'end'
   matchWinner: null as 'CORO' | 'DIRAC' | null,
+};
+
+// Visual do joystick (Etapa 10): valores Animated module-level — a camada
+// de input escreve, o componente visual apenas lê. Nenhum re-render.
+export const joyVisual = {
+  base: new Animated.ValueXY({ x: 0, y: 0 }), // canto sup. esq. da base (px)
+  knob: new Animated.ValueXY({ x: 0, y: 0 }), // offset do knob
+  opacity: new Animated.Value(0),
+  active: false, // há dedo no joystick (leitura imperativa)
 };
 
 // Gancho de automação/diagnóstico: expõe o estado vivo do jogo (usado nos

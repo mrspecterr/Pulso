@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { COLORS } from '../config/constants';
 import { TARGET_HP, TARGET_RESPAWN_MS } from '../config/constants';
+import { StaticBuckets } from '../core/merge';
 
 type DummyState = 'alive' | 'dying' | 'dead' | 'spawning';
 
@@ -73,20 +74,24 @@ export class TargetRange {
       body.position.y = 0.98;
       body.castShadow = true;
 
-      // armadura do boneco de treino (filhos do corpo)
+      // armadura do boneco de treino — fundida por material (Etapa 10):
+      // peças fixas entre si → 2 meshes em vez de 5
+      const armor = new StaticBuckets(body);
       const chest = new THREE.Mesh(armorGeo, armorMat);
       chest.position.set(0, 0.14, 0.13);
-      chest.castShadow = true;
       const pack = new THREE.Mesh(packGeo, packMat);
       pack.position.set(0, 0.12, -0.21);
-      pack.castShadow = true;
       const shL = new THREE.Mesh(shoulderGeo, armorMat);
       shL.position.set(-0.3, 0.36, 0);
       const shR = new THREE.Mesh(shoulderGeo, armorMat);
       shR.position.set(0.3, 0.36, 0);
       const belt = new THREE.Mesh(beltGeo, armorMat);
       belt.position.set(0, -0.44, 0);
-      body.add(chest, pack, shL, shR, belt);
+      for (const piece of [chest, pack, shL, shR, belt]) {
+        piece.castShadow = true;
+        armor.add(piece);
+      }
+      armor.build();
 
       const head = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.66;

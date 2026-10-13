@@ -1,40 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { CSS } from '../config/constants';
+import { StyleSheet, Text, View } from 'react-native';
+import { BTN, CSS } from '../config/constants';
 import { inputState, roundState } from '../core/state';
 
 const MONO = 'monospace';
 
 /**
  * PlantButton — canal de plantio do Diapasão (Etapa 5).
- * Aparece quando o jogador está numa zona de site na fase de ação.
- * Segurar planta; mover ou soltar cancela (o progresso decai no loop).
+ * APENAS VISUAL (Etapa 10): o toque vem da camada única de input; a barra
+ * acompanha o progresso real do canal e o brilho segue o dedo (plantHeld).
  */
 export default function PlantButton() {
   const [prog, setProg] = useState(0);
   const [site, setSite] = useState<'A' | 'B' | null>(null);
+  const [held, setHeld] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
       setProg(roundState.plantProgress);
       setSite(roundState.inSite);
+      setHeld(inputState.plantHeld);
     }, 80);
     return () => clearInterval(id);
   }, []);
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.btn,
-        prog > 0 || pressed ? styles.btnOn : styles.btnIdle,
-      ]}
-      onPressIn={() => {
-        inputState.plantHeld = true;
-      }}
-      onPressOut={() => {
-        inputState.plantHeld = false;
-      }}
-    >
+    <View pointerEvents="none" style={[styles.btn, prog > 0 || held ? styles.btnOn : styles.btnIdle]}>
       <Text style={styles.label}>
         PLANTAR{site ? ` · SITE ${site}` : ''}
       </Text>
@@ -42,20 +33,20 @@ export default function PlantButton() {
         <View style={[styles.barFill, { width: `${Math.min(1, prog) * 100}%` }]} />
       </View>
       <Text style={styles.hint}>segure sem mover</Text>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   btn: {
     position: 'absolute',
-    right: 150,
-    bottom: 128,
-    width: 150,
+    right: BTN.PLANT.right,
+    bottom: BTN.PLANT.bottom,
+    width: BTN.PLANT.w,
+    minHeight: BTN.PLANT.h,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: CSS.TEAL,
-    backgroundColor: 'rgba(9,13,18,0.85)',
     alignItems: 'center',
     paddingVertical: 10,
   },

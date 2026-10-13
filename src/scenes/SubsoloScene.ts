@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { COLORS, SITES } from '../config/constants';
+import { StaticBuckets } from '../core/merge';
 import {
   beamTexture,
   concreteTexture,
@@ -25,11 +26,13 @@ export interface SceneBundle {
   plant: (site: 'A' | 'B') => void;
   /** remove o Diapasão plantado (início de rodada) */
   clearPlant: () => void;
+  /** redimensiona o mapa de sombra (qualidade, Etapa 10) */
+  setShadowResolution: (px: number) => void;
 }
 
 /**
  * SUBSOLO — estação de metrô desativada (mapa da etapa 3, direção de arte da
- * etapa 9).
+ * etapa 9, desempenho da etapa 10).
  *
  * Layout tático (vista de cima, norte = -Z):
  *
@@ -43,14 +46,19 @@ export interface SceneBundle {
  *         └── MEIO (trilhos) ──┘
  *              SPAWN CORO (sul)
  *
- * Etapa 9: texturas procedurais (concreto, lajes, painéis, hazard),
- * iluminação com sombras, vigas, luminárias penduradas, canos, rodapés,
- * placas de site, trilhos com dormentes e pedestal do Diapasão — as
- * COLISÕES e os SÓLIDOS são exatamente os mesmos das etapas anteriores.
+ * Etapa 9: texturas procedurais, iluminação com sombras, vigas, luminárias,
+ * canos, rodapés, placas de site, trilhos com dormentes e pedestal.
+ * Etapa 10: toda a geometria ESTÁTICA é fundida por material (StaticBuckets)
+ * — o cenário inteiro desenha em ~25 chamadas em vez de ~170. As COLISÕES
+ * e os SÓLIDOS continuam exatamente os mesmos das etapas anteriores.
  */
 export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   const colliders: AABB[] = [];
   const solids: THREE.Object3D[] = [];
+
+  // geometria estática: sólida (para balas) e decorativa
+  const solidStatics = new StaticBuckets(scene);
+  const decorStatics = new StaticBuckets(scene);
 
   scene.background = new THREE.Color(0x0a0d12);
   scene.fog = new THREE.FogExp2(0x0a0d12, 0.018);
@@ -140,7 +148,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
       shaft.position.set(x, 1.95, z);
       shaft.rotation.y = ry;
       shaft.renderOrder = 20;
-      scene.add(shaft);
+      decorStatics.add(shaft);
     }
   };
 
@@ -156,8 +164,6 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   ceil.position.y = 3.8;
   // teto NÃO projeta sombra — deixa a "luz-chave" atravessar e desenhar as
   // sombras de paredes/colunas/caixotes no chão (padrão Valorant)
-  ceil.castShadow = false;
-  ceil.receiveShadow = false;
   scene.add(ceil);
   solids.push(ceil);
 
@@ -165,7 +171,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   for (let bx = -18; bx <= 18; bx += 6) {
     const beam = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 30.6), darkMetal);
     beam.position.set(bx, 3.6, 0);
-    scene.add(beam);
+    decorStatics.add(beam);
   }
 
   // --- luminárias penduradas (casa escura + tubo emissivo) ---
@@ -176,7 +182,8 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     house.position.set(x, 3.55, z);
     const tube = new THREE.Mesh(lampTubeGeo, lampMat);
     tube.position.set(x, 3.49, z);
-    scene.add(house, tube);
+    decorStatics.add(house);
+    decorStatics.add(tube);
   };
   for (const z of [-9, -3, 3, 9]) {
     lampAt(-13, z);
@@ -201,7 +208,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
       const pipe = new THREE.Mesh(pipeAlongX, darkMetal);
       pipe.rotation.z = Math.PI / 2;
       pipe.position.set(0, y, z);
-      scene.add(pipe);
+      decorStatics.add(pipe);
     }
   }
   const pipeAlongZ = new THREE.CylinderGeometry(0.055, 0.055, 30.6, 8);
@@ -209,7 +216,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     const pipe = new THREE.Mesh(pipeAlongZ, darkMetal);
     pipe.rotation.x = Math.PI / 2;
     pipe.position.set(x, 3.36, 0);
-    scene.add(pipe);
+    decorStatics.add(pipe);
   }
 
   // --- grades de ventilação nos muros (quebram a monotonia do concreto) ---
@@ -228,7 +235,8 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     core.position.set(x, y, z);
     core.rotation.y = ry;
     core.translateZ(0.02);
-    scene.add(frame, core);
+    decorStatics.add(frame);
+    decorStatics.add(core);
   };
   ventAt(-19.44, 2.05, -4, Math.PI / 2); // parede oeste
   ventAt(-19.44, 2.05, 6, Math.PI / 2);
@@ -255,19 +263,18 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     m.position.set(x, h / 2, z);
     m.castShadow = true;
     m.receiveShadow = true;
-    scene.add(m);
-    solids.push(m);
+    solidStatics.add(m);
     colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 
     // rodapé escuro
     const bb = new THREE.Mesh(new THREE.BoxGeometry(w + 0.05, 0.24, d + 0.05), trimMat);
     bb.position.set(x, 0.12, z);
     bb.receiveShadow = true;
-    scene.add(bb);
+    decorStatics.add(bb);
     // friso superior
     const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.09, d + 0.04), trimMat);
     cap.position.set(x, h - 0.045, z);
-    scene.add(cap);
+    decorStatics.add(cap);
     return m;
   };
 
@@ -281,16 +288,15 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     m.position.set(x, 1.9, z);
     m.castShadow = true;
     m.receiveShadow = true;
-    scene.add(m);
-    solids.push(m);
+    solidStatics.add(m);
     colliders.push({ minX: x - s / 2, maxX: x + s / 2, minZ: z - s / 2, maxZ: z + s / 2 });
 
     const hz = new THREE.Mesh(new THREE.BoxGeometry(s + 0.05, 0.55, s + 0.05), hazardMat);
     hz.position.set(x, 0.275, z);
-    scene.add(hz);
+    decorStatics.add(hz);
     const cap = new THREE.Mesh(new THREE.BoxGeometry(s + 0.06, 0.1, s + 0.06), trimMat);
     cap.position.set(x, 3.75, z);
-    scene.add(cap);
+    decorStatics.add(cap);
     return m;
   };
 
@@ -306,8 +312,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     m.rotation.y = (x * 13.7 + z * 7.3) % 0.5 - 0.25;
     m.castShadow = true;
     m.receiveShadow = true;
-    scene.add(m);
-    solids.push(m);
+    solidStatics.add(m);
     const c = Math.cos(m.rotation.y);
     const sn = Math.sin(m.rotation.y);
     const ex = (s / 2) * (Math.abs(c) + Math.abs(sn));
@@ -321,7 +326,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     strap.position.copy(m.position);
     strap.position.y = s - 0.09;
     strap.rotation.y = m.rotation.y;
-    scene.add(strap);
+    decorStatics.add(strap);
     return m;
   };
 
@@ -367,7 +372,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 15), railMat);
     rail.position.set(rx, 0.06, 2.2);
     rail.castShadow = true;
-    scene.add(rail);
+    decorStatics.add(rail);
   }
   const tieGeo = new THREE.BoxGeometry(2.7, 0.09, 0.26);
   const tieMat = new THREE.MeshStandardMaterial({
@@ -380,23 +385,23 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     const tie = new THREE.Mesh(tieGeo, tieMat);
     tie.position.set(0, 0.045, -4.8 + i * 1.4);
     tie.receiveShadow = true;
-    scene.add(tie);
+    decorStatics.add(tie);
   }
 
   // --- faixas de ressonância (accent emissivo nas divisórias) ---
   const stripAlongZ = (x: number, z: number, len: number, mat: THREE.Material) => {
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, len), mat);
     s.position.set(x, 2.55, z);
-    scene.add(s);
+    decorStatics.add(s);
   };
   stripAlongZ(-7.63, 2, 15.6, tealGlow); // muro L, face oeste (A MAIN)
   stripAlongZ(7.63, 2, 15.6, magentaGlow); // muro R, face leste (B MAIN)
   const stripA = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.1, 0.02), tealGlow);
   stripA.position.set(-3.2, 2.55, -10.93);
-  scene.add(stripA);
+  decorStatics.add(stripA);
   const stripB = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.1, 0.02), magentaGlow);
   stripB.position.set(3.2, 2.55, -10.93);
-  scene.add(stripB);
+  decorStatics.add(stripB);
 
   // --- marcação do SPAWN (faixa teal no chão) ---
   const spawnMark = new THREE.Mesh(
@@ -411,18 +416,18 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   );
   spawnMark.rotation.x = -Math.PI / 2;
   spawnMark.position.set(0, 0.02, 13.5);
-  scene.add(spawnMark);
+  decorStatics.add(spawnMark);
 
   // --- pedestais de plantio (um por site, sempre visíveis) ---
   const pedestalAt = (x: number, z: number, mat: THREE.Material) => {
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.62, 0.16, 22), darkMetal);
     base.position.set(x, 0.08, z);
     base.castShadow = true;
-    scene.add(base);
+    decorStatics.add(base);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.028, 8, 32), mat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(x, 0.17, z);
-    scene.add(ring);
+    decorStatics.add(ring);
   };
   pedestalAt(SITES.A.x, SITES.A.z, tealGlow);
   pedestalAt(SITES.B.x, SITES.B.z, magentaGlow);
@@ -441,7 +446,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
       m.rotation.x = -Math.PI / 2;
       m.position.set(x + sx, 0.021, z + sz);
-      scene.add(m);
+      decorStatics.add(m);
     };
     strip(S, 0.16, 0, -S / 2);
     strip(S, 0.16, 0, S / 2);
@@ -459,7 +464,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     );
     fill.rotation.x = -Math.PI / 2;
     fill.position.set(x, 0.015, z);
-    scene.add(fill);
+    decorStatics.add(fill);
   };
   siteFrame(SITES.A.x, SITES.A.z, COLORS.TEAL);
   siteFrame(SITES.B.x, SITES.B.z, COLORS.MAGENTA);
@@ -470,20 +475,21 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     new THREE.MeshBasicMaterial({ map: letterTexture('A', COLORS.TEAL), transparent: true })
   );
   letterA.position.set(-13, 2.35, -15.44);
-  scene.add(letterA);
+  decorStatics.add(letterA);
   const letterB = new THREE.Mesh(
     new THREE.PlaneGeometry(2.5, 2.5),
     new THREE.MeshBasicMaterial({ map: letterTexture('B', COLORS.MAGENTA), transparent: true })
   );
   letterB.position.set(13, 2.35, -15.44);
-  scene.add(letterB);
+  decorStatics.add(letterB);
 
   // --- pilonas de sinal nos cantos dos sites ---
+  // (tiras/top PULSAM por material clonado — ficam fora do merge)
   const pylonAt = (x: number, z: number, mat: THREE.MeshBasicMaterial) => {
     const col = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.4, 0.3), darkMetal);
     col.position.set(x, 1.7, z);
     col.castShadow = true;
-    scene.add(col);
+    decorStatics.add(col);
     const strip = new THREE.Mesh(new THREE.BoxGeometry(0.32, 2.3, 0.02), mat);
     strip.position.set(x, 1.62, z + 0.17);
     scene.add(strip);
@@ -494,6 +500,11 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   };
   const pylonA = pylonAt(-14.7, -14.5, tealGlow.clone());
   const pylonB = pylonAt(14.7, -14.5, magentaGlow.clone());
+
+  // ================= FUNDE A GEOMETRIA ESTÁTICA =================
+  // paredes/colunas/caixotes fundidos param balas; o resto é decoração
+  solids.push(...solidStatics.build());
+  decorStatics.build();
 
   // --- DIAPASÃO (núcleo que viaja com o jogador e é plantado) ---
   const diapOuter = new THREE.LineSegments(
@@ -539,16 +550,25 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   const dir = new THREE.DirectionalLight(0xffe7c4, 3.2);
   dir.position.set(9, 17, 7);
   dir.castShadow = true;
-  dir.shadow.mapSize.set(2048, 2048);
-  dir.shadow.camera.left = -26;
-  dir.shadow.camera.right = 26;
-  dir.shadow.camera.top = 22;
-  dir.shadow.camera.bottom = -22;
+  dir.shadow.mapSize.set(1024, 1024);
+  dir.shadow.camera.left = -24;
+  dir.shadow.camera.right = 24;
+  dir.shadow.camera.top = 20;
+  dir.shadow.camera.bottom = -20;
   dir.shadow.camera.near = 4;
   dir.shadow.camera.far = 55;
   dir.shadow.bias = -0.0005;
   dir.shadow.normalBias = 0.03;
   scene.add(dir);
+
+  const setShadowResolution = (px: number) => {
+    dir.shadow.mapSize.set(px, px);
+    // força recriação do mapa na próxima passada
+    if (dir.shadow.map) {
+      dir.shadow.map.dispose();
+      (dir.shadow as unknown as { map: THREE.WebGLRenderTarget | null }).map = null;
+    }
+  };
 
   const siteALight = new THREE.PointLight(COLORS.TEAL, 12, 17, 1.6);
   siteALight.position.set(-13, 2.6, -12.5);
@@ -596,5 +616,5 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     pulseRing.visible = false;
   };
 
-  return { update, colliders, solids, plant, clearPlant };
+  return { update, colliders, solids, plant, clearPlant, setShadowResolution };
 }

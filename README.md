@@ -51,7 +51,8 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - [x] **7** — Traços (◈ CENZURA cega · ▤ BARREIRA ergue muro) + DIRACs que silenciam o Diapasão
 - [x] **8** — Agentes jogáveis com kits próprios (MUDO, ECO, GRAVE) + troca de agente entre partidas
 - [x] **9** — Direção de arte: texturas, iluminação/sombras, viewmodel, VFX
-- [ ] **10+** — Áudio e feedback, matchmaking 5v5, polimento
+- [x] **10** — Multi-touch real (camada única de entrada) + desempenho (merge de geometria, resolução escalonada, contador de FPS)
+- [ ] **11+** — Áudio e feedback, matchmaking 5v5, polimento
 
 ## 🔧 Como o APK é feito (automático)
 

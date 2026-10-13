@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { AGENTS, CSS, PLAYER_HP, WEAPONS } from '../config/constants';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AGENTS, BTN, CSS, PLAYER_HP, QUALITY, WEAPONS } from '../config/constants';
 import {
   gameStats,
-  inputState,
   lookState,
   playerVitals,
   roundState,
@@ -11,6 +10,7 @@ import {
   settings,
 } from '../core/state';
 import type { Phase } from '../core/state';
+import InputLayer from '../core/InputLayer';
 import BuyMenu from './BuyMenu';
 import Crosshair from './Crosshair';
 import DamageVignette from './DamageVignette';
@@ -24,7 +24,6 @@ import TracoButtons from './TracoButtons';
 import TracoFlash from './TracoFlash';
 
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
-const SENS = [1, 1.5, 2];
 
 interface Snap {
   ammo: number;
@@ -54,6 +53,9 @@ interface Snap {
   defusing: boolean; // um DIRAC silenciando o Diapasão (Etapa 7)
   defuseProgress: number; // 0..1 do canal
   secLeft: number; // segundos da fase/carga atual
+  fps: number; // quadros por segundo (Etapa 10)
+  sens: number; // multiplicador de sensibilidade vigente
+  quality: string; // rótulo da qualidade gráfica vigente
 }
 
 function readState(): Snap {
@@ -90,6 +92,9 @@ function readState(): Snap {
     defusing: gameStats.defusing,
     defuseProgress: gameStats.defuseProgress,
     secLeft: Math.max(0, Math.ceil((end - now) / 1000)),
+    fps: gameStats.fps,
+    sens: settings.sensMultiplier,
+    quality: QUALITY[settings.quality].label,
   };
 }
 
@@ -108,7 +113,6 @@ const PHASE_LABEL: Record<Phase, string> = {
  */
 export default function Hud() {
   const [s, setS] = useState<Snap>(() => readState());
-  const [sensIdx, setSensIdx] = useState(0);
   // kit fixo da partida — o HUD lê direto da sessão (Etapa 8)
   const A = AGENTS[sessionState.agent];
   const tracoHint = A.tracos.map((t) => `${t.glyph} ${t.label}`).join(' · ');
@@ -119,13 +123,8 @@ export default function Hud() {
     return () => clearInterval(id);
   }, []);
 
-  const cycleSens = () => {
-    const next = (sensIdx + 1) % SENS.length;
-    setSensIdx(next);
-    settings.sensMultiplier = SENS[next];
-  };
-
   const showCombat = s.phase === 'live' || s.phase === 'end';
+  const modalOpen = s.phase === 'buy' || s.phase === 'over';
   const showPlant =
     s.phase === 'live' && s.carrying && s.inSite !== null && !s.planted && s.hp > 0;
   const timerCritical = s.phase === 'live' && s.secLeft <= 10;
@@ -136,7 +135,7 @@ export default function Hud() {
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
-          RODADA {s.roundNum} · v0.9
+          RODADA {s.roundNum} · v0.10
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}
@@ -196,16 +195,22 @@ export default function Hud() {
         </View>
       </View>
 
-      {/* ==== topo direito: leitura + ameaça + sensibilidade ==== */}
+      {/* topo direito: leitura + ameaça + FPS */}
       <View style={styles.tr}>
         <Text style={styles.readout}>
           {Math.round((lookState.yaw * 180) / Math.PI)}° ·{' '}
           {Math.round((lookState.pitch * 180) / Math.PI)}°
         </Text>
         <Text style={styles.enemyCount}>{s.enemies} DIRAC EM CAMPO</Text>
-        <Pressable style={styles.sensBtn} onPress={cycleSens}>
-          <Text style={styles.sensTxt}>SENS {SENS[sensIdx].toFixed(1)}×</Text>
-        </Pressable>
+        <Text style={styles.fpsTag}>{s.fps} FPS</Text>
+      </View>
+      {/* SENS e GRAF: coluna esquerda, posição/tamanho FIXOS (BTN) —
+          tocados via camada de input */}
+      <View pointerEvents="none" style={styles.sensBtn}>
+        <Text style={styles.sensTxt}>SENS {s.sens.toFixed(1)}×</Text>
+      </View>
+      <View pointerEvents="none" style={styles.grafBtn}>
+        <Text style={styles.grafTxt}>GRAF {s.quality}</Text>
       </View>
 
       {/* ==== dicas contextuais ==== */}
@@ -297,7 +302,10 @@ export default function Hud() {
       {showPlant ? <PlantButton /> : null}
       <Joystick />
 
-      {/* ==== loja / fim de partida ==== */}
+      {/* ==== camada única de entrada (Etapa 10: multi-touch real) ==== */}
+      <InputLayer active={!modalOpen} />
+
+      {/* ==== loja / fim de partida (acima da camada de entrada) ==== */}
       {s.phase === 'buy' ? <BuyMenu /> : null}
       {s.phase === 'over' ? <MatchOver /> : null}
 
@@ -368,6 +376,13 @@ const styles = StyleSheet.create({
   shFill: { height: '100%', backgroundColor: '#9FD8E8' },
   shBonus: { backgroundColor: '#FFB454' }, // COURAÇA ativa (âmbar)
   readout: { fontFamily: MONO, fontSize: 10, color: CSS.TEXT_DIM },
+  fpsTag: {
+    fontFamily: MONO,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: 'rgba(122,139,153,0.7)',
+    marginTop: 4,
+  },
   enemyCount: {
     fontFamily: MONO,
     fontSize: 9,
@@ -376,14 +391,31 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   sensBtn: {
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    position: 'absolute',
+    left: BTN.SENS.left,
+    top: BTN.SENS.top,
+    width: BTN.SENS.w,
+    height: BTN.SENS.h,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(45,226,198,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sensTxt: { fontFamily: MONO, fontSize: 11, letterSpacing: 1, color: CSS.TEAL },
+  grafBtn: {
+    position: 'absolute',
+    left: BTN.GRAF.left,
+    top: BTN.GRAF.top,
+    width: BTN.GRAF.w,
+    height: BTN.GRAF.h,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(122,139,153,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  grafTxt: { fontFamily: MONO, fontSize: 11, letterSpacing: 1, color: '#AFC2CE' },
   hint: { fontFamily: MONO, fontSize: 12, letterSpacing: 1, color: '#AFC2CE' },
   hintDim: {
     fontFamily: MONO,

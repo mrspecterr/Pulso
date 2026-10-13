@@ -17,6 +17,7 @@
 
 import * as THREE from 'three';
 import { BOTS, COLORS, DEFUSE } from '../config/constants';
+import { StaticBuckets } from '../core/merge';
 
 type BotPhase = 'patrol' | 'alert' | 'engage' | 'retake' | 'silencing' | 'dying' | 'dead';
 
@@ -187,16 +188,13 @@ export class BotSquad {
       body.position.y = 0.98;
       body.castShadow = true;
 
-      // armadura + propulsor de mochila + fuzil seguro na mão direita
+      // armadura + propulsor + fuzil — fundidos por material (Etapa 10):
+      // as peças nunca se movem entre si, então viram 3 meshes em vez de 5
+      const armor = new StaticBuckets(body);
       const chest = new THREE.Mesh(armorGeo, armorMat);
       chest.position.set(0, 0.14, 0.13);
-      chest.castShadow = true;
       const pack = new THREE.Mesh(packGeo, packMat);
       pack.position.set(0, 0.12, -0.21);
-      pack.castShadow = true;
-      const thruster = new THREE.Mesh(thrusterGeo, thrusterMat);
-      thruster.position.set(0, 0.28, -0.3);
-      pack.add(thruster);
       const shL = new THREE.Mesh(shoulderGeo, armorMat);
       shL.position.set(-0.3, 0.36, 0);
       const shR = new THREE.Mesh(shoulderGeo, armorMat);
@@ -204,7 +202,13 @@ export class BotSquad {
       const gun = new THREE.Mesh(gunGeo, packMat);
       gun.position.set(0.26, 0.02, 0.16);
       gun.rotation.x = 0.06;
-      body.add(chest, pack, shL, shR, gun);
+      const thruster = new THREE.Mesh(thrusterGeo, thrusterMat);
+      thruster.position.set(0, 0.4, -0.51); // corpo-espaço (pack + local)
+      for (const piece of [chest, pack, shL, shR, gun, thruster]) {
+        piece.castShadow = true;
+        armor.add(piece);
+      }
+      armor.build();
 
       const head = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.66;

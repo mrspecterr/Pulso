@@ -1,11 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  NativeSyntheticEvent,
-  NativeTouchEvent,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { GLView } from 'expo-gl';
@@ -24,13 +21,11 @@ import {
   CSS,
   COLORS,
   EYE_HEIGHT,
-  LEFT_ZONE,
-  LOOK_SENSITIVITY,
   MOVE_SPEED,
   MUZZLE_MS,
-  PITCH_LIMIT,
   PLAYER_HP,
   PLAYER_RADIUS,
+  QUALITY,
   ROUND,
   SITES,
   TRACOS,
@@ -38,7 +33,7 @@ import {
   TRACER_MS,
   WEAPONS,
 } from '../config/constants';
-import type { TracoKey } from '../config/constants';
+import type { QualityId, TracoKey } from '../config/constants';
 import {
   gameStats,
   hudEvents,
@@ -51,7 +46,6 @@ import {
   tracoState,
 } from './state';
 
-const tid = (t: { identifier: string | number }) => String(t.identifier);
 const DEG2RAD = Math.PI / 180;
 
 // posições dos bonecos de treino (aquecimento no SPAWN, longe das rotas dos bots)
@@ -76,8 +70,6 @@ interface Tracer {
  * legível (em vez de crash cego) — facilita diagnóstico em aparelho real.
  */
 export default function Game() {
-  const lookPointer = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
-  const { width } = useWindowDimensions();
   const [fatal, setFatal] = useState<{ message: string; stack: string } | null>(null);
   const [glKey, setGlKey] = useState(0);
   // handle de encerramento do loop — chamado quando o Game desmonta
@@ -122,45 +114,13 @@ export default function Game() {
     );
   }
 
+  // Etapa 10: TODOS os toques chegam pela camada única (InputLayer) no HUD —
+  // a mira de arrasto que vivia aqui não existe mais.
   return (
-    <View
-      style={styles.fill}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchEnd}
-    >
+    <View style={styles.fill}>
       <GLView key={glKey} style={styles.fill} onContextCreate={onContextCreate} />
     </View>
   );
-
-  // --- handlers de mira (usam width via closure acima) ---
-  function onTouchStart(e: NativeSyntheticEvent<NativeTouchEvent>) {
-    const t = e.nativeEvent.changedTouches[0];
-    if (!t || t.pageX < width * LEFT_ZONE) return;
-    if (lookPointer.current.id !== '') return;
-    lookPointer.current = { id: tid(t), x: t.pageX, y: t.pageY };
-  }
-
-  function onTouchMove(e: NativeSyntheticEvent<NativeTouchEvent>) {
-    const lp = lookPointer.current;
-    if (lp.id === '') return;
-    const t = e.nativeEvent.touches.find((x) => tid(x) === lp.id);
-    if (!t) return;
-    lookState.yaw -= (t.pageX - lp.x) * LOOK_SENSITIVITY * settings.sensMultiplier;
-    lookState.pitch -= (t.pageY - lp.y) * LOOK_SENSITIVITY * settings.sensMultiplier;
-    lookState.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, lookState.pitch));
-    lp.x = t.pageX;
-    lp.y = t.pageY;
-  }
-
-  function onTouchEnd(e: NativeSyntheticEvent<NativeTouchEvent>) {
-    const lp = lookPointer.current;
-    if (lp.id === '') return;
-    if (e.nativeEvent.changedTouches.some((t) => tid(t) === lp.id)) {
-      lookPointer.current = { id: '', x: 0, y: 0 };
-    }
-  }
 }
 
 function reportFatal(
@@ -201,6 +161,7 @@ function runGame(
     __PULSO__?: {
       pos?: THREE.Vector3;
       bots?: { alive: number; list: Array<{ id: number; phase: string; x: number; z: number; hp: number }> };
+      renderer?: THREE.WebGLRenderer;
     };
   };
   if (g.__PULSO__) {
@@ -219,15 +180,57 @@ function runGame(
   gunFill.position.set(0.18, 0.08, -0.22);
   camera.add(gunFill);
 
-  // --- renderer ---
+  // --- renderer (Etapa 10: pipeline de desempenho) ---
   const renderer = new Renderer({ gl });
   renderer.setSize(w, h);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  // direção de arte (Etapa 9): filmic + sombras suaves
+  // direção de arte (Etapa 9): filmic
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.55;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Etapa 10: PCF puro (o "Soft" custa o dobro no mobile) + atualização a 20 Hz
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.autoUpdate = false;
+  let nextShadowUpdate = 0;
+
+  // Alvo de render escalonado: o mundo 3D é desenhado em resolução menor e
+  // esticado para o buffer nativo num único quad texturizado (1 draw call).
+  // O HUD React continua nítido — só a imagem 3D fica mais leve de calcular.
+  let renderTarget: THREE.WebGLRenderTarget | null = null;
+  const blitScene = new THREE.Scene();
+  const blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const blitMat = new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false });
+  blitMat.toneMapped = false; // o tom filmico já foi aplicado ao renderizar o mundo
+  blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blitMat));
+
+  const applyQuality = () => {
+    const Q = QUALITY[settings.quality];
+    renderTarget?.dispose();
+    renderTarget = new THREE.WebGLRenderTarget(
+      Math.max(2, Math.floor(w * Q.scale)),
+      Math.max(2, Math.floor(h * Q.scale)),
+      { depthBuffer: true, stencilBuffer: false, generateMipmaps: false }
+    );
+    blitMat.map = renderTarget.texture;
+    blitMat.needsUpdate = true;
+    // sombras: ligar/desligar exige recompilar materiais (uma vez, ok)
+    const shadowsChanged = renderer.shadowMap.enabled !== Q.shadows;
+    renderer.shadowMap.enabled = Q.shadows;
+    renderer.shadowMap.needsUpdate = true;
+    bundle.setShadowResolution(Q.shadowSize);
+    if (shadowsChanged) {
+      scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material;
+        if (m) {
+          (Array.isArray(m) ? m : [m]).forEach((mm) => {
+            mm.needsUpdate = true;
+          });
+        }
+      });
+    }
+  };
+  let curQuality: QualityId = settings.quality;
+  applyQuality();
+  if (g.__PULSO__) g.__PULSO__.renderer = renderer; // diagnóstico direto
 
   // --- efeitos de disparo ---
   const raycaster = new THREE.Raycaster();
@@ -646,12 +649,14 @@ function runGame(
   let prevYaw = lookState.yaw;
   let prevPitch = lookState.pitch;
   let viewPunch = 0; // recuo visual da câmera (sobe e decai)
+  let fpsEma = 60; // média móvel de quadros (Etapa 10)
   const loop = () => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
     try {
       const now = performance.now();
-      const dt = Math.min((now - last) / 1000, 0.05);
+      const rawDt = (now - last) / 1000;
+      const dt = Math.min(rawDt, 0.05);
       const dtMs = now - last;
       last = now;
 
@@ -841,8 +846,32 @@ function runGame(
 
       range.update(dt, camera);
       bundle.update(dt, now / 1000);
+
+      // troca de qualidade no meio do jogo (botão GRAF)
+      if (settings.quality !== curQuality) {
+        curQuality = settings.quality;
+        applyQuality();
+      }
+
+      // sombras a 20 Hz (imperceptível) em vez de todo frame
+      if (renderer.shadowMap.enabled && now >= nextShadowUpdate) {
+        renderer.shadowMap.needsUpdate = true;
+        nextShadowUpdate = now + 50;
+      }
+
+      // render em duas etapas: mundo no alvo escalonado → quad final
+      renderer.setRenderTarget(renderTarget);
       renderer.render(scene, camera);
+      gameStats.drawCalls = renderer.info.render.calls; // passada da cena
+      renderer.setRenderTarget(null);
+      renderer.render(blitScene, blitCam);
       gl.endFrameEXP();
+
+      // diagnóstico de desempenho (HUD + __PULSO__)
+      if (rawDt > 0) {
+        fpsEma += (1 / rawDt - fpsEma) * 0.06;
+      }
+      gameStats.fps = Math.round(fpsEma);
     } catch (e) {
       stopped = true;
       cancelAnimationFrame(raf);
