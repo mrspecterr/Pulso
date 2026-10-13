@@ -38,6 +38,7 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas.
 - **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
 - **Mapa SUBSOLO** — 40×32m com corredores, sites A/B, caixotes e colisão real.
+- **Direção de arte (v0.9)** — texturas procedurais (concreto, lajes, painéis, hazard), iluminação com sombras dinâmicas, arma em primeira pessoa animada, faíscas de impacto, luminárias/vigas/canos e placas de site.
 
 ## 🗺️ Roadmap
 
@@ -49,7 +50,8 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - [x] **6** — Bots DIRAC com IA (patrulha, percepção, combate)
 - [x] **7** — Traços (◈ CENZURA cega · ▤ BARREIRA ergue muro) + DIRACs que silenciam o Diapasão
 - [x] **8** — Agentes jogáveis com kits próprios (MUDO, ECO, GRAVE) + troca de agente entre partidas
-- [ ] **9+** — Áudio e feedback, matchmaking 5v5, polimento
+- [x] **9** — Direção de arte: texturas, iluminação/sombras, viewmodel, VFX
+- [ ] **10+** — Áudio e feedback, matchmaking 5v5, polimento
 
 ## 🔧 Como o APK é feito (automático)
 
