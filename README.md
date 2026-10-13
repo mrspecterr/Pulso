@@ -43,8 +43,8 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - [x] **4** — Gunplay do LEGATO (spray, recarga, dano/headshot, alvos)
 - [x] **5** — Economia dB, rodadas, plantio do Diapasão, loja
 - [x] **6** — Bots DIRAC com IA (patrulha, percepção, combate)
-- [ ] **7** — Traços (habilidades por gesto) + DIRACs que silenciam o Diapasão
-- [ ] **8+** — Agentes jogáveis, matchmaking 5v5, áudio, polimento
+- [x] **7** — Traços (◈ CENZURA cega · ▤ BARREIRA ergue muro) + DIRACs que silenciam o Diapasão
+- [ ] **8+** — Agentes jogáveis com kits próprios, matchmaking 5v5, áudio, polimento
 
 ## 🔧 Como o APK é feito (automático)
 

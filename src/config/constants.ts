@@ -146,3 +146,23 @@ export const BOTS = {
   LOS_EVERY_MS: 180, // intervalo entre checagens de visão
   LOSE_MS: 900, // sem te ver por isto → desiste
 } as const;
+
+// --- Traços do agente (Etapa 7) ---
+export const TRACOS = {
+  CENZURA_USES: 2, // usos por rodada
+  CENZURA_BLIND_MS: 2600, // duração da cegueira
+  CENZURA_RANGE: 14, // alcance em operadores com linha de visão
+  CENZURA_CD_MS: 8000, // intervalo entre usos
+  BARREIRA_USES: 1, // usos por rodada
+  BARREIRA_LIFE_MS: 5000, // duração do muro de ressonância
+  BARREIRA_WIDTH: 4, // m
+  BARREIRA_HEIGHT: 2.6, // m
+  BARREIRA_DIST: 3.2, // distância erguida à frente do jogador
+} as const;
+
+// --- silenciar o Diapasão (retake DIRAC, Etapa 7) ---
+export const DEFUSE = {
+  MS: 7000, // canal de silenciamento (interrompível por dano)
+  RADIUS: 1.4, // distância do Diapasão para silenciar
+  RETAKE_SPEED: 2.1, // m/s correndo de volta ao site
+} as const;

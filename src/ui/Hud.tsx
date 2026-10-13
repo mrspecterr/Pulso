@@ -12,6 +12,8 @@ import Joystick from './Joystick';
 import MatchOver from './MatchOver';
 import PlantButton from './PlantButton';
 import ReloadButton from './ReloadButton';
+import TracoButtons from './TracoButtons';
+import TracoFlash from './TracoFlash';
 
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 const SENS = [1, 1.5, 2];
@@ -35,11 +37,13 @@ interface Snap {
   planted: boolean;
   inSite: 'A' | 'B' | null;
   plantProgress: number;
-  outcome: 'pulse' | 'time' | 'elim' | null;
+  outcome: 'pulse' | 'time' | 'elim' | 'silenced' | null;
   matchWinner: 'CORO' | 'DIRAC' | null;
   hp: number;
   shield: number;
   enemies: number; // operadores DIRAC em campo
+  defusing: boolean; // um DIRAC silenciando o Diapasão (Etapa 7)
+  defuseProgress: number; // 0..1 do canal
   secLeft: number; // segundos da fase/carga atual
 }
 
@@ -73,6 +77,8 @@ function readState(): Snap {
     hp: playerVitals.hp,
     shield: playerVitals.shield,
     enemies: gameStats.enemiesAlive,
+    defusing: gameStats.defusing,
+    defuseProgress: gameStats.defuseProgress,
     secLeft: Math.max(0, Math.ceil((end - now) / 1000)),
   };
 }
@@ -115,7 +121,7 @@ export default function Hud() {
       {/* ==== topo esquerdo: identidade + economia ==== */}
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
-        <Text style={styles.sub}>RODADA {s.roundNum} · v0.6</Text>
+        <Text style={styles.sub}>RODADA {s.roundNum} · v0.7</Text>
         <Text style={styles.db}>{s.dB} dB</Text>
         <Text style={styles.gun}>{s.weapon}</Text>
         {s.carrying && s.phase === 'live' ? (
@@ -181,7 +187,9 @@ export default function Hud() {
       {s.phase === 'buy' ? (
         <View style={styles.bc}>
           <Text style={styles.hint}>compre equipamento e confirme PRONTO</Text>
-          <Text style={styles.hintDim}>os abates na fase de ação rendem +200 dB</Text>
+          <Text style={styles.hintDim}>
+            abates rendem +200 dB · Traços: ◈ CENZURA cega · ▤ BARREIRA ergue muro
+          </Text>
         </View>
       ) : null}
       {s.phase === 'live' && !s.planted ? (
@@ -198,7 +206,20 @@ export default function Hud() {
       ) : null}
       {s.phase === 'live' && s.planted ? (
         <View style={styles.bc}>
-          <Text style={styles.hintTeal}>o Diapasão pulsa — mantenha a área limpa</Text>
+          <Text style={styles.hintTeal}>
+            defenda o site — os DIRAC vão tentar silenciar o Diapasão
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ==== alerta de silenciamento em andamento (Etapa 7) ==== */}
+      {s.phase === 'live' && s.planted && s.defusing ? (
+        <View style={styles.defuseBox}>
+          <Text style={styles.defuseTitle}>DIAPASÃO SOB SILENCIAMENTO</Text>
+          <View style={styles.defuseBg}>
+            <View style={[styles.defuseFill, { width: `${s.defuseProgress * 100}%` }]} />
+          </View>
+          <Text style={styles.defuseSub}>acerte o operador para interromper</Text>
         </View>
       ) : null}
 
@@ -210,7 +231,9 @@ export default function Hud() {
               ? 'PULSO ESTABELECIDO'
               : s.outcome === 'elim'
                 ? 'VOCÊ FOI ELIMINADO'
-                : 'TEMPO ESGOTADO'}
+                : s.outcome === 'silenced'
+                  ? 'DIAPASÃO SILENCIADO'
+                  : 'TEMPO ESGOTADO'}
           </Text>
           <Text style={styles.bannerSub}>
             ponto para {s.outcome === 'pulse' ? 'CORO' : 'DIRAC'} · próxima rodada em {s.secLeft}s
@@ -245,6 +268,7 @@ export default function Hud() {
           <Hitmarker />
           <FireButton />
           <ReloadButton />
+          <TracoButtons />
         </>
       ) : null}
       {showPlant ? <PlantButton /> : null}
@@ -256,6 +280,8 @@ export default function Hud() {
 
       {/* dano recebido (sempre montado; invisível quando parado) */}
       <DamageVignette />
+      {/* feedback dos Traços (sempre montado; invisível quando parado) */}
+      <TracoFlash />
     </View>
   );
 }
@@ -353,6 +379,43 @@ const styles = StyleSheet.create({
   teal: { color: CSS.TEAL },
   magenta: { color: CSS.MAGENTA },
   bannerSub: { fontFamily: MONO, fontSize: 11, letterSpacing: 2, color: '#AFC2CE', marginTop: 6 },
+  defuseBox: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -130,
+    top: '22%',
+    width: 260,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,61,142,0.7)',
+    backgroundColor: 'rgba(9,13,18,0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  defuseTitle: {
+    fontFamily: MONO,
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    color: CSS.MAGENTA,
+  },
+  defuseBg: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,61,142,0.2)',
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  defuseFill: { height: '100%', backgroundColor: CSS.MAGENTA },
+  defuseSub: {
+    fontFamily: MONO,
+    fontSize: 8,
+    letterSpacing: 1,
+    color: CSS.TEXT_DIM,
+    marginTop: 5,
+  },
   ammoBox: {
     position: 'absolute',
     right: 34,

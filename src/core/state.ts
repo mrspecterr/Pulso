@@ -3,6 +3,7 @@
 // de componente a cada frame.
 
 import type { WeaponId } from '../config/constants';
+import { TRACOS } from '../config/constants';
 
 export const lookState = { yaw: 0, pitch: 0 };
 
@@ -14,6 +15,7 @@ export const inputState = {
   plantHeld: false, // botão PLANTAR pressionado (canal de plantio)
   readyQueued: false, // HUD pede para encerrar a fase de compra
   restartQueued: false, // HUD pede reinício da partida (fim de jogo)
+  tracoQueued: null as 'cenzura' | 'barreira' | null, // Traço pedido pelo HUD
 };
 
 export const settings = {
@@ -30,6 +32,15 @@ export const gameStats = {
   kills: 0,
   headshots: 0,
   enemiesAlive: 3, // operadores DIRAC em campo (Etapa 6)
+  defusing: false, // um DIRAC está silenciando o Diapasão (Etapa 7)
+  defuseProgress: 0, // 0..1 do canal de silenciamento
+};
+
+// Traços do agente (Etapa 7) — usos por rodada + recarga da CENZURA.
+export const tracoState = {
+  cenzura: TRACOS.CENZURA_USES,
+  barreira: TRACOS.BARREIRA_USES,
+  cenzuraReadyAt: 0, // timestamp do próximo uso disponível
 };
 
 // Vitais do jogador (Etapa 5 — ainda sem fontes de dano, estrutura pronta).
@@ -53,17 +64,18 @@ export const roundState = {
   shield: 0, // 0 | 25 | 50
   carrying: true, // carregando o Diapasão
   planted: false, // Diapasão plantado
+  plantSite: null as 'A' | 'B' | null, // site do Diapasão plantado
   plantProgress: 0, // 0..1 do canal de plantio
   inSite: null as 'A' | 'B' | null, // site em que o jogador está
   chargeEndsAt: 0, // timestamp de conclusão do PULSO
-  outcome: null as 'pulse' | 'time' | 'elim' | null, // resultado da rodada em 'end'
+  outcome: null as 'pulse' | 'time' | 'elim' | 'silenced' | null, // resultado em 'end'
   matchWinner: null as 'CORO' | 'DIRAC' | null,
 };
 
 // Gancho de automação/diagnóstico: expõe o estado vivo do jogo (usado nos
 // testes de runtime do projeto e para debug remoto; inofensivo no jogo).
 const g = globalThis as unknown as { __PULSO__?: object };
-g.__PULSO__ = { lookState, inputState, roundState, gameStats, playerVitals, settings };
+g.__PULSO__ = { lookState, inputState, roundState, gameStats, playerVitals, settings, tracoState };
 
 // Tipos de evento que o HUD pode receber do loop de jogo.
 export type HudEvent =
@@ -73,7 +85,8 @@ export type HudEvent =
   | { type: 'reload' }
   | { type: 'planted'; site: 'A' | 'B' }
   | { type: 'playerHit'; dmg: number; hp: number }
-  | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim'; coro: number; dirac: number; dB: number }
+  | { type: 'traco'; kind: 'cenzura' | 'barreira' } // Traço executado (Etapa 7)
+  | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim' | 'silenced'; coro: number; dirac: number; dB: number }
   | { type: 'matchOver'; winner: 'CORO' | 'DIRAC' };
 
 // Mini event-bus para efeitos do HUD (pulso da mira, hitmarker etc.)

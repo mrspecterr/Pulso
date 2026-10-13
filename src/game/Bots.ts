@@ -7,15 +7,18 @@
 //   alert  → trava na direção do jogador por um tempo de reação humano
 //   engage → strafe lateral + rajadas de 3–6 tiros com imprecisão por
 //            distância e movimento do alvo; sem visão por ~0.9s → patrol
+//   retake (Etapa 7) → Diapasão plantado: corre de volta ao site
+//            (waypoints com deslize em parede) para silenciá-lo
+//   silencing → canal de 7s junto ao Diapasão; dano ou CENZURA interrompe
 //   dying  → tomba (450ms); sem respawn até a próxima rodada
 //
 // O dano ao jogador passa pelo callback hitPlayer (o Game aplica o
 // escudo, emite o evento de HUD e encerra a rodada se necessário).
 
 import * as THREE from 'three';
-import { BOTS, COLORS } from '../config/constants';
+import { BOTS, COLORS, DEFUSE } from '../config/constants';
 
-type BotPhase = 'patrol' | 'alert' | 'engage' | 'dying' | 'dead';
+type BotPhase = 'patrol' | 'alert' | 'engage' | 'retake' | 'silencing' | 'dying' | 'dead';
 
 interface Bot {
   id: number;
@@ -26,6 +29,7 @@ interface Bot {
   barMat: THREE.MeshBasicMaterial;
   bodyMat: THREE.MeshStandardMaterial;
   headMat: THREE.MeshStandardMaterial;
+  visorMat: THREE.MeshBasicMaterial; // por bot: pisca branco quando cego
   hp: number;
   phase: BotPhase;
   phaseT: number; // timestamp de entrada na fase
@@ -40,6 +44,11 @@ interface Bot {
   strafeDir: 1 | -1;
   strafeT: number; // próxima troca de direção do strafe
   flash: number; // brilho de dano 0..1
+  blindUntil: number; // CENZURA: cego até este timestamp (Etapa 7)
+  defuseK: number; // progresso do silenciamento 0..1
+  retakeChain: Array<[number, number]>; // waypoints até o Diapasão
+  retakeWp: number; // índice do waypoint do retake
+  stuckMs: number; // tempo sem conseguir andar (destrava o retake)
 }
 
 export interface BotCtx {
@@ -52,6 +61,10 @@ export interface BotCtx {
   hitPlayer: (dmg: number) => void;
   tracer: (from: THREE.Vector3, to: THREE.Vector3) => void;
   muzzle: (pos: THREE.Vector3) => void;
+  /** posição do Diapasão plantado (null = não plantado) — Etapa 7 */
+  plantPos: THREE.Vector3 | null;
+  /** um DIRAC completou o silenciamento — DIRAC vence a rodada */
+  onSilenced: () => void;
 }
 
 export interface BotInfo {
@@ -85,6 +98,14 @@ const ROUTES: Array<Array<[number, number]>> = [
 
 const DEATH_MS = 450;
 
+// Âncoras do retake (Etapa 7): passagem sul do site antes de entrar nele
+// e vão central do Concurso para quem vem do lado oposto do mapa.
+const RETAKE_ANCHOR: Record<'A' | 'B', [number, number]> = {
+  A: [-10.5, -9.5],
+  B: [10.5, -9.5],
+};
+const RETAKE_MID: [number, number] = [0, -8.6];
+
 /** Interpolação angular pelo caminho curto (-π..π). */
 function angLerp(a: number, b: number, t: number) {
   let d = b - a;
@@ -95,7 +116,12 @@ function angLerp(a: number, b: number, t: number) {
 
 export class BotSquad {
   /** leitura ao vivo para HUD/diagnóstico (polling; não é reativo) */
-  readonly info: { alive: number; list: BotInfo[] } = { alive: 0, list: [] };
+  readonly info: {
+    alive: number;
+    list: BotInfo[];
+    defusing: boolean; // Etapa 7: alguém silenciando o Diapasão
+    defuseProgress: number; // 0..1 do canal
+  } = { alive: 0, list: [], defusing: false, defuseProgress: 0 };
 
   private bots: Bot[] = [];
   private ray = new THREE.Raycaster();
@@ -112,7 +138,6 @@ export class BotSquad {
     const headGeo = new THREE.SphereGeometry(0.18, 16, 12);
     const barGeo = new THREE.PlaneGeometry(0.72, 0.075);
     const visorGeo = new THREE.BoxGeometry(0.2, 0.06, 0.05);
-    const visorMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
 
     ROUTES.forEach((route, id) => {
       const bodyMat = new THREE.MeshStandardMaterial({
@@ -142,6 +167,7 @@ export class BotSquad {
       const head = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.66;
       // visor — o "olho" magenta do operador (frente local +Z)
+      const visorMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
       const visor = new THREE.Mesh(visorGeo, visorMat);
       visor.position.set(0, 0.02, 0.17);
       head.add(visor);
@@ -165,6 +191,7 @@ export class BotSquad {
         barMat,
         bodyMat,
         headMat,
+        visorMat,
         hp: BOTS.HP,
         phase: 'patrol',
         phaseT: 0,
@@ -179,6 +206,11 @@ export class BotSquad {
         strafeDir: 1,
         strafeT: 0,
         flash: 0,
+        blindUntil: 0,
+        defuseK: 0,
+        retakeChain: [],
+        retakeWp: 0,
+        stuckMs: 0,
       });
     });
 
@@ -194,7 +226,7 @@ export class BotSquad {
   get aliveMeshes(): THREE.Mesh[] {
     const out: THREE.Mesh[] = [];
     for (const b of this.bots) {
-      if (b.phase === 'patrol' || b.phase === 'alert' || b.phase === 'engage') {
+      if (b.phase !== 'dying' && b.phase !== 'dead') {
         out.push(b.body, b.head);
       }
     }
@@ -210,7 +242,12 @@ export class BotSquad {
     bot.flash = 1;
     // levar tiro revela o atirador
     bot.lastSeen = performance.now();
-    if (bot.phase === 'patrol') {
+    // silenciamento/retake interrompidos: ele luta de volta
+    if (bot.phase === 'silencing') {
+      bot.defuseK = 0;
+      this.updateBar(bot);
+    }
+    if (bot.phase === 'patrol' || bot.phase === 'retake' || bot.phase === 'silencing') {
       bot.phase = 'alert';
       bot.phaseT = performance.now();
       bot.reactAt = bot.phaseT + 120; // reação curta quando já está levando tiro
@@ -224,6 +261,29 @@ export class BotSquad {
     }
     this.updateBar(bot);
     return { killed: false, hp: bot.hp };
+  }
+
+  /**
+   * CENZURA (Traço do jogador, Etapa 7): cega operadores com linha de
+   * visão até o jogador dentro do alcance. Cegos não atiram nem
+   * silenciam; o silenciamento em curso é interrompido.
+   */
+  blindNear(playerPos: THREE.Vector3, now: number, range: number, blindMs: number) {
+    for (const b of this.bots) {
+      if (b.phase === 'dying' || b.phase === 'dead') continue;
+      const d = Math.hypot(
+        b.group.position.x - playerPos.x,
+        b.group.position.z - playerPos.z
+      );
+      if (d <= range && this.los(b, playerPos)) {
+        b.blindUntil = Math.max(b.blindUntil, now + blindMs);
+        if (b.phase === 'silencing') {
+          b.phase = 'retake'; // recomeça o canal quando chegar de novo
+          b.defuseK = 0;
+          this.updateBar(b);
+        }
+      }
+    }
   }
 
   /** Tiro do jogador ecoou — bots dentro do alcance de audição entram em alerta. */
@@ -259,6 +319,11 @@ export class BotSquad {
       b.strafeDir = 1;
       b.strafeT = 0;
       b.flash = 0;
+      b.blindUntil = 0;
+      b.defuseK = 0;
+      b.retakeChain = [];
+      b.retakeWp = 0;
+      b.stuckMs = 0;
       b.group.visible = true;
       b.group.rotation.set(0, 0, 0);
       b.group.position.set(b.route[0][0], 0, b.route[0][1]);
@@ -266,6 +331,7 @@ export class BotSquad {
       b.bar.visible = true;
       b.bodyMat.emissiveIntensity = 0.1;
       b.headMat.emissiveIntensity = 0.2;
+      b.visorMat.color.setHex(COLORS.MAGENTA);
       this.updateBar(b);
     }
     this.syncInfo();
@@ -273,6 +339,9 @@ export class BotSquad {
 
   /** Chamado todo frame pelo loop de jogo. */
   update(dt: number, now: number, ctx: BotCtx) {
+    let anyDefusing = false;
+    let defuseProgress = 0;
+
     for (const b of this.bots) {
       // barra de vida encara a câmera
       b.bar.quaternion.copy(ctx.camera.quaternion);
@@ -282,6 +351,15 @@ export class BotSquad {
         b.flash = Math.max(0, b.flash - dt * 8);
         b.bodyMat.emissiveIntensity = 0.1 + b.flash * 1.5;
         b.headMat.emissiveIntensity = 0.2 + b.flash * 1.7;
+      }
+
+      // CENZURA: visor branco piscando enquanto cego
+      const blinded = now < b.blindUntil;
+      if (blinded) {
+        const k = 0.5 + Math.abs(Math.sin(now / 45)) * 0.5;
+        b.visorMat.color.setRGB(k, k, k);
+      } else if (b.visorMat.color.r !== COLORS.MAGENTA / 16777216) {
+        b.visorMat.color.setHex(COLORS.MAGENTA);
       }
 
       if (b.phase === 'dying') {
@@ -302,8 +380,31 @@ export class BotSquad {
       const dz = ctx.playerPos.z - b.group.position.z;
       const dist = Math.hypot(dx, dz);
 
-      // --- percepção (com throttle) ---
-      if (now - b.losT >= BOTS.LOS_EVERY_MS) {
+      // --- Etapa 7: Diapasão plantado → todos correm para silenciar ---
+      if (
+        ctx.plantPos &&
+        !blinded &&
+        (b.phase === 'patrol' || b.phase === 'alert' || b.phase === 'engage')
+      ) {
+        b.phase = 'retake';
+        b.phaseT = now;
+        b.shooting = false;
+        // rota: vem do lado oposto do mapa? passa pelo vão central antes
+        const site: 'A' | 'B' = ctx.plantPos.x < 0 ? 'A' : 'B';
+        const anchor = RETAKE_ANCHOR[site];
+        const oppositeSide =
+          (site === 'A' && b.group.position.x > 2) ||
+          (site === 'B' && b.group.position.x < -2);
+        b.retakeChain = oppositeSide
+          ? [RETAKE_MID, anchor, [ctx.plantPos.x, ctx.plantPos.z]]
+          : [anchor, [ctx.plantPos.x, ctx.plantPos.z]];
+        b.retakeWp = 0;
+        b.defuseK = 0;
+        this.updateBar(b);
+      }
+
+      // --- percepção (com throttle) — cego não enxerga ---
+      if (!blinded && now - b.losT >= BOTS.LOS_EVERY_MS) {
         b.losT = now;
         if (
           ctx.playerAlive &&
@@ -357,7 +458,7 @@ export class BotSquad {
             Math.min(1, dt * 10)
           );
           if (now - b.lastSeen > BOTS.LOSE_MS) {
-            b.phase = 'patrol';
+            b.phase = ctx.plantPos ? 'retake' : 'patrol';
             break;
           }
           if (now >= b.reactAt) {
@@ -371,8 +472,9 @@ export class BotSquad {
         }
 
         case 'engage': {
+          if (blinded) break; // cego para de atirar e fica parado
           if (!ctx.playerAlive || now - b.lastSeen > BOTS.LOSE_MS) {
-            b.phase = 'patrol';
+            b.phase = ctx.plantPos ? 'retake' : 'patrol';
             break;
           }
           b.group.rotation.y = angLerp(
@@ -422,11 +524,94 @@ export class BotSquad {
           break;
         }
 
+        case 'retake': {
+          if (!ctx.plantPos || blinded) break; // cego espera passar
+          const [tx, tz] = b.retakeChain[b.retakeWp];
+          const wdx = tx - b.group.position.x;
+          const wdz = tz - b.group.position.z;
+          const wd = Math.hypot(wdx, wdz);
+
+          // chegou ao Diapasão?
+          const dp = Math.hypot(
+            ctx.plantPos.x - b.group.position.x,
+            ctx.plantPos.z - b.group.position.z
+          );
+          if (dp <= DEFUSE.RADIUS) {
+            b.phase = 'silencing';
+            b.phaseT = now;
+            this.updateBar(b);
+            break;
+          }
+
+          if (wd < 0.6 && b.retakeWp < b.retakeChain.length - 1) {
+            b.retakeWp++;
+            b.stuckMs = 0;
+            break;
+          }
+
+          // anda com deslize em parede (eixo a eixo, como o jogador)
+          const step = DEFUSE.RETAKE_SPEED * dt;
+          const nx = b.group.position.x + (wdx / (wd || 1)) * step;
+          const nz = b.group.position.z + (wdz / (wd || 1)) * step;
+          let movedOk = false;
+          if (!ctx.blocked(nx, nz)) {
+            b.group.position.x = nx;
+            b.group.position.z = nz;
+            movedOk = true;
+          } else if (!ctx.blocked(nx, b.group.position.z)) {
+            b.group.position.x = nx;
+            movedOk = true;
+          } else if (!ctx.blocked(b.group.position.x, nz)) {
+            b.group.position.z = nz;
+            movedOk = true;
+          }
+
+          if (movedOk) {
+            b.stuckMs = 0;
+            b.group.rotation.y = angLerp(
+              b.group.rotation.y,
+              Math.atan2(wdx, wdz),
+              Math.min(1, dt * 7)
+            );
+          } else {
+            b.stuckMs += dt * 1000;
+            if (b.stuckMs > 1200) {
+              // travado: reinjeta o vão central no meio da rota
+              b.retakeChain = [
+                RETAKE_MID,
+                ...b.retakeChain.filter(
+                  (p) => p[0] !== RETAKE_MID[0] || p[1] !== RETAKE_MID[1]
+                ),
+              ];
+              b.retakeWp = 0;
+              b.stuckMs = 0;
+            }
+          }
+          break;
+        }
+
+        case 'silencing': {
+          if (!ctx.plantPos) break;
+          b.defuseK += (dt * 1000) / DEFUSE.MS;
+          if (b.defuseK >= 1) {
+            b.defuseK = 1;
+            ctx.onSilenced();
+          }
+          // barra mostra o canal de silenciamento (branco → magenta)
+          b.barMat.color.setRGB(1, 1, 1).lerp(this.tmpCol.set(COLORS.MAGENTA), b.defuseK);
+          b.bar.scale.x = Math.max(0.02, b.defuseK);
+          anyDefusing = true;
+          defuseProgress = Math.max(defuseProgress, b.defuseK);
+          break;
+        }
+
         default:
           break;
       }
     }
 
+    this.info.defusing = anyDefusing;
+    this.info.defuseProgress = defuseProgress;
     this.syncInfo();
   }
 

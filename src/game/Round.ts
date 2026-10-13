@@ -5,11 +5,12 @@
 //   live → ação: plantar o Diapasão no SITE A/B e proteger a carga (75s)
 //          plantado → carga do PULSO (40s) → ponto CORO
 //          tempo esgotado sem plant → ponto DIRAC
+//          Diapasão silenciado por um DIRAC → ponto DIRAC (Etapa 7)
 //   end  → banner do resultado (5s)
 //   over → partida encerrada (primeiro a 7)
 
 import { ECONOMY, ROUND } from '../config/constants';
-import { hudEvents, inputState, playerVitals, roundState } from '../core/state';
+import { gameStats, hudEvents, inputState, playerVitals, roundState } from '../core/state';
 
 interface Hooks {
   /** chamado no início de cada rodada: resetar player, alvos, arma */
@@ -45,9 +46,12 @@ export class RoundManager {
     roundState.phaseEndsAt = performance.now() + ROUND.BUY_MS;
     roundState.carrying = true;
     roundState.planted = false;
+    roundState.plantSite = null;
     roundState.plantProgress = 0;
     roundState.inSite = null;
     roundState.outcome = null;
+    gameStats.defusing = false;
+    gameStats.defuseProgress = 0;
     playerVitals.hp = 100;
     playerVitals.shield = roundState.shield;
     this.hooks.onRoundStart();
@@ -125,6 +129,7 @@ export class RoundManager {
   private plant(now: number) {
     const site = roundState.inSite as 'A' | 'B';
     roundState.planted = true;
+    roundState.plantSite = site;
     roundState.carrying = false;
     roundState.chargeEndsAt = now + ROUND.CHARGE_MS;
     hudEvents.emit({ type: 'planted', site });
@@ -138,7 +143,14 @@ export class RoundManager {
     }
   }
 
-  private endRound(outcome: 'pulse' | 'time' | 'elim') {
+  /** Um operador DIRAC silenciou o Diapasão (Etapa 7) — ponto DIRAC. */
+  silence() {
+    if (roundState.phase === 'live' && roundState.planted) {
+      this.endRound('silenced');
+    }
+  }
+
+  private endRound(outcome: 'pulse' | 'time' | 'elim' | 'silenced') {
     roundState.phase = 'end';
     roundState.outcome = outcome;
     roundState.phaseEndsAt = performance.now() + ROUND.END_MS;

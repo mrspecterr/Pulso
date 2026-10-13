@@ -31,11 +31,21 @@ import {
   PLAYER_RADIUS,
   ROUND,
   SITES,
+  TRACOS,
   TRACER_LENGTH,
   TRACER_MS,
   WEAPONS,
 } from '../config/constants';
-import { gameStats, hudEvents, inputState, lookState, playerVitals, roundState, settings } from './state';
+import {
+  gameStats,
+  hudEvents,
+  inputState,
+  lookState,
+  playerVitals,
+  roundState,
+  settings,
+  tracoState,
+} from './state';
 
 const tid = (t: { identifier: string | number }) => String(t.identifier);
 const DEG2RAD = Math.PI / 180;
@@ -54,8 +64,9 @@ interface Tracer {
 /**
  * Game — GLView (OpenGL ES nativo), renderer three.js e loop.
  *
- * Etapa 6: operadores DIRAC com IA (patrulha, percepção, rajadas), dano
- * ao jogador (escudo absorve), morte = fim de rodada e death-cam.
+ * Etapa 7: DIRACs correm para silenciar o Diapasão plantado; o jogador
+ * recebe Traços — CENZURA (cega operadores com linha de visão) e
+ * BARREIRA (muro de ressonância que bloqueia visão, balas e passagem).
  *
  * Blindagem: qualquer exceção no init do GL ou no loop aparece num painel
  * legível (em vez de crash cego) — facilita diagnóstico em aparelho real.
@@ -218,6 +229,134 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
     tracers.push({ line, born: performance.now() });
   };
 
+  // --- Etapa 7: Traços ---
+  // BARREIRA: muro de ressonância — bloqueia visão dos bots, balas e passagem
+  const siteVec: Record<'A' | 'B', THREE.Vector3> = {
+    A: new THREE.Vector3(SITES.A.x, 0, SITES.A.z),
+    B: new THREE.Vector3(SITES.B.x, 0, SITES.B.z),
+  };
+  let barrier: {
+    mesh: THREE.Mesh;
+    edge: THREE.LineSegments;
+    colliderIdx: number;
+    until: number;
+  } | null = null;
+
+  const removeBarrier = () => {
+    if (!barrier) return;
+    scene.remove(barrier.mesh);
+    scene.remove(barrier.edge);
+    const si = bundle.solids.indexOf(barrier.mesh);
+    if (si >= 0) bundle.solids.splice(si, 1);
+    bundle.colliders.splice(barrier.colliderIdx, 1);
+    barrier.mesh.geometry.dispose();
+    (barrier.mesh.material as THREE.Material).dispose();
+    barrier.edge.geometry.dispose();
+    (barrier.edge.material as THREE.Material).dispose();
+    barrier = null;
+  };
+
+  const spawnBarrier = (nowMs: number) => {
+    const yaw = lookState.yaw;
+    const fx = -Math.sin(yaw);
+    const fz = -Math.cos(yaw);
+    const cx = camera.position.x + fx * TRACOS.BARREIRA_DIST;
+    const cz = camera.position.z + fz * TRACOS.BARREIRA_DIST;
+
+    const geo = new THREE.BoxGeometry(
+      TRACOS.BARREIRA_WIDTH,
+      TRACOS.BARREIRA_HEIGHT,
+      0.12
+    );
+    const mesh = new THREE.Mesh(
+      geo,
+      new THREE.MeshBasicMaterial({
+        color: COLORS.TEAL,
+        transparent: true,
+        opacity: 0.32,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    mesh.position.set(cx, TRACOS.BARREIRA_HEIGHT / 2, cz);
+    mesh.rotation.y = yaw; // face longa perpendicular à visão
+    scene.add(mesh);
+
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: 0xd9fff4, transparent: true, opacity: 0.9 })
+    );
+    edge.position.copy(mesh.position);
+    edge.rotation.copy(mesh.rotation);
+    scene.add(edge);
+
+    // colisor AABB (a parede fina girada por yaw)
+    const hw = TRACOS.BARREIRA_WIDTH / 2;
+    const hx = Math.abs(Math.cos(yaw)) * hw + Math.abs(Math.sin(yaw)) * 0.06;
+    const hz = Math.abs(Math.sin(yaw)) * hw + Math.abs(Math.cos(yaw)) * 0.06;
+    bundle.colliders.push({ minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz });
+    bundle.solids.push(mesh); // bloqueia balas e a visão dos bots
+
+    barrier = {
+      mesh,
+      edge,
+      colliderIdx: bundle.colliders.length - 1,
+      until: nowMs + TRACOS.BARREIRA_LIFE_MS,
+    };
+  };
+
+  // CENZURA: anel de choque que expande do jogador (feedback visual)
+  interface Pulse {
+    ring: THREE.Mesh;
+    born: number;
+  }
+  const pulses: Pulse[] = [];
+  const spawnPulse = (color: number) => {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 0.62, 48),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(camera.position.x, 0.12, camera.position.z);
+    scene.add(ring);
+    pulses.push({ ring, born: performance.now() });
+  };
+
+  const CENZURA_MS = 450; // duração do anel visual
+
+  const useTraco = (kind: 'cenzura' | 'barreira', nowMs: number) => {
+    const playerAlive = playerVitals.hp > 0;
+    const combatOk = roundState.phase === 'live' || roundState.phase === 'end';
+    if (!combatOk || !playerAlive) return;
+
+    if (kind === 'cenzura') {
+      if (tracoState.cenzura <= 0 || nowMs < tracoState.cenzuraReadyAt) return;
+      tracoState.cenzura--;
+      tracoState.cenzuraReadyAt = nowMs + TRACOS.CENZURA_CD_MS;
+      squad.blindNear(
+        camera.position,
+        nowMs,
+        TRACOS.CENZURA_RANGE,
+        TRACOS.CENZURA_BLIND_MS
+      );
+      spawnPulse(0xf2fbff); // clarão branco no chão
+      hudEvents.emit({ type: 'traco', kind: 'cenzura' });
+    } else {
+      if (tracoState.barreira <= 0 || barrier) return; // um muro por vez
+      tracoState.barreira--;
+      spawnBarrier(nowMs);
+      hudEvents.emit({ type: 'traco', kind: 'barreira' });
+    }
+  };
+
   // --- estado da arma (por rodada; espelha roundState.weapon) ---
   let ammo = WEAPONS.STACCATO.MAG;
   let lastShot = 0;
@@ -237,6 +376,11 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
     burstIdx = 0;
     gameStats.ammo = ammo;
     gameStats.reloading = false;
+    // Traços da rodada (Etapa 7)
+    tracoState.cenzura = TRACOS.CENZURA_USES;
+    tracoState.barreira = TRACOS.BARREIRA_USES;
+    tracoState.cenzuraReadyAt = 0;
+    removeBarrier();
     bundle.clearPlant();
     range.reset();
     squad.reset();
@@ -468,8 +612,48 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
           muzzleLight.intensity = 12;
           muzzleUntil = now + MUZZLE_MS;
         },
+        plantPos: roundState.planted && roundState.plantSite
+          ? siteVec[roundState.plantSite]
+          : null,
+        onSilenced: () => rounds.silence(),
       });
       gameStats.enemiesAlive = squad.info.alive;
+      gameStats.defusing = squad.info.defusing;
+      gameStats.defuseProgress = squad.info.defuseProgress;
+
+      // Traços pedidos pelo HUD (Etapa 7)
+      if (inputState.tracoQueued) {
+        const kind = inputState.tracoQueued;
+        inputState.tracoQueued = null;
+        useTraco(kind, now);
+      }
+
+      // BARREIRA: pulsa e some no fim da vida útil
+      if (barrier) {
+        const left = barrier.until - now;
+        const mat = barrier.mesh.material as THREE.MeshBasicMaterial;
+        const emat = barrier.edge.material as THREE.LineBasicMaterial;
+        mat.opacity =
+          0.26 + Math.sin(now / 160) * 0.05 + Math.min(1, left / 800) * 0.06;
+        emat.opacity = Math.min(0.9, left / 800);
+        if (left <= 0) removeBarrier();
+      }
+
+      // CENZURA: anéis de choque expandem e somem
+      for (let i = pulses.length - 1; i >= 0; i--) {
+        const p = pulses[i];
+        const age = now - p.born;
+        if (age >= CENZURA_MS) {
+          scene.remove(p.ring);
+          p.ring.geometry.dispose();
+          (p.ring.material as THREE.Material).dispose();
+          pulses.splice(i, 1);
+        } else {
+          const k = age / CENZURA_MS;
+          p.ring.scale.setScalar(0.4 + k * 10);
+          (p.ring.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - k);
+        }
+      }
 
       // recarga pedida pelo HUD
       if (inputState.reloadQueued) {
