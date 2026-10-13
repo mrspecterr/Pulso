@@ -30,14 +30,24 @@ export default function MatchOver() {
         <Text style={styles.statLine}>disparos {gameStats.shots}</Text>
       </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.btn, pressed && styles.btnP]}
-        onPress={() => {
-          inputState.restartQueued = true;
-        }}
-      >
-        <Text style={styles.btnTxt}>⟲ NOVA PARTIDA</Text>
-      </Pressable>
+      <View style={styles.rowBtns}>
+        <Pressable
+          style={({ pressed }) => [styles.btn, pressed && styles.btnP]}
+          onPress={() => {
+            inputState.restartQueued = true;
+          }}
+        >
+          <Text style={styles.btnTxt}>⟲ NOVA PARTIDA</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.btnAlt, pressed && styles.btnAltP]}
+          onPress={() => {
+            inputState.agentSelectQueued = true;
+          }}
+        >
+          <Text style={styles.btnAltTxt}>⇄ TROCAR AGENTE</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -60,8 +70,8 @@ const styles = StyleSheet.create({
   line: { fontFamily: MONO, fontSize: 10, letterSpacing: 2, color: CSS.TEXT_DIM, marginTop: 4 },
   stats: { marginTop: 22, alignItems: 'center' },
   statLine: { fontFamily: MONO, fontSize: 12, color: '#AFC2CE', letterSpacing: 1, marginTop: 3 },
+  rowBtns: { flexDirection: 'row', alignItems: 'center', marginTop: 26 },
   btn: {
-    marginTop: 26,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: CSS.TEAL,
@@ -71,4 +81,21 @@ const styles = StyleSheet.create({
   },
   btnP: { backgroundColor: 'rgba(45,226,198,0.4)' },
   btnTxt: { fontFamily: MONO, fontSize: 15, fontWeight: 'bold', letterSpacing: 4, color: CSS.TEAL },
+  btnAlt: {
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(159,216,232,0.6)',
+    backgroundColor: 'rgba(159,216,232,0.10)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginLeft: 12,
+  },
+  btnAltP: { backgroundColor: 'rgba(159,216,232,0.3)' },
+  btnAltTxt: {
+    fontFamily: MONO,
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 3,
+    color: '#9FD8E8',
+  },
 });

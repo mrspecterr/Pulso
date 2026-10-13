@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { CSS, PLAYER_HP, WEAPONS } from '../config/constants';
-import { gameStats, inputState, lookState, playerVitals, roundState, settings } from '../core/state';
+import { AGENTS, CSS, PLAYER_HP, WEAPONS } from '../config/constants';
+import {
+  gameStats,
+  inputState,
+  lookState,
+  playerVitals,
+  roundState,
+  sessionState,
+  settings,
+} from '../core/state';
 import type { Phase } from '../core/state';
 import BuyMenu from './BuyMenu';
 import Crosshair from './Crosshair';
@@ -41,6 +49,7 @@ interface Snap {
   matchWinner: 'CORO' | 'DIRAC' | null;
   hp: number;
   shield: number;
+  shieldBonus: number; // escudo temporal da COURAÇA (GRAVE, Etapa 8)
   enemies: number; // operadores DIRAC em campo
   defusing: boolean; // um DIRAC silenciando o Diapasão (Etapa 7)
   defuseProgress: number; // 0..1 do canal
@@ -76,6 +85,7 @@ function readState(): Snap {
     matchWinner: roundState.matchWinner,
     hp: playerVitals.hp,
     shield: playerVitals.shield,
+    shieldBonus: playerVitals.shieldBonus,
     enemies: gameStats.enemiesAlive,
     defusing: gameStats.defusing,
     defuseProgress: gameStats.defuseProgress,
@@ -99,6 +109,10 @@ const PHASE_LABEL: Record<Phase, string> = {
 export default function Hud() {
   const [s, setS] = useState<Snap>(() => readState());
   const [sensIdx, setSensIdx] = useState(0);
+  // kit fixo da partida — o HUD lê direto da sessão (Etapa 8)
+  const A = AGENTS[sessionState.agent];
+  const tracoHint = A.tracos.map((t) => `${t.glyph} ${t.label}`).join(' · ');
+  const shieldTotal = s.shield + s.shieldBonus;
 
   useEffect(() => {
     const id = setInterval(() => setS(readState()), 100);
@@ -121,7 +135,12 @@ export default function Hud() {
       {/* ==== topo esquerdo: identidade + economia ==== */}
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
-        <Text style={styles.sub}>RODADA {s.roundNum} · v0.7</Text>
+        <Text style={styles.sub}>
+          RODADA {s.roundNum} · v0.8
+        </Text>
+        <Text style={[styles.agent, { color: A.corCss }]}>
+          {A.nome} · {A.funcao}
+        </Text>
         <Text style={styles.db}>{s.dB} dB</Text>
         <Text style={styles.gun}>{s.weapon}</Text>
         {s.carrying && s.phase === 'live' ? (
@@ -163,9 +182,15 @@ export default function Hud() {
           <View style={styles.hpBg}>
             <View style={[styles.hpFill, { width: `${(s.hp / PLAYER_HP) * 100}%` }]} />
           </View>
-          {s.shield > 0 ? (
+          {shieldTotal > 0 ? (
             <View style={styles.shBg}>
-              <View style={[styles.shFill, { width: `${(s.shield / 50) * 100}%` }]} />
+              <View
+                style={[
+                  styles.shFill,
+                  s.shieldBonus > 0 && styles.shBonus,
+                  { width: `${Math.min(100, (shieldTotal / 100) * 100)}%` },
+                ]}
+              />
             </View>
           ) : null}
         </View>
@@ -187,9 +212,7 @@ export default function Hud() {
       {s.phase === 'buy' ? (
         <View style={styles.bc}>
           <Text style={styles.hint}>compre equipamento e confirme PRONTO</Text>
-          <Text style={styles.hintDim}>
-            abates rendem +200 dB · Traços: ◈ CENZURA cega · ▤ BARREIRA ergue muro
-          </Text>
+          <Text style={styles.hintDim}>abates rendem +200 dB · Traços: {tracoHint}</Text>
         </View>
       ) : null}
       {s.phase === 'live' && !s.planted ? (
@@ -300,6 +323,7 @@ const styles = StyleSheet.create({
     color: CSS.TEAL,
   },
   sub: { fontFamily: MONO, fontSize: 10, letterSpacing: 2, color: CSS.TEXT_DIM, marginTop: 2 },
+  agent: { fontFamily: MONO, fontSize: 10, letterSpacing: 2, fontWeight: 'bold', marginTop: 3 },
   db: { fontFamily: MONO, fontSize: 15, fontWeight: 'bold', color: '#F2FBFF', marginTop: 6 },
   gun: { fontFamily: MONO, fontSize: 10, letterSpacing: 3, color: CSS.TEXT_DIM, marginTop: 2 },
   chip: {
@@ -334,7 +358,7 @@ const styles = StyleSheet.create({
   },
   hpFill: { height: '100%', backgroundColor: CSS.MAGENTA },
   shBg: {
-    width: 60,
+    width: 80,
     height: 6,
     borderRadius: 3,
     marginLeft: 6,
@@ -342,6 +366,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   shFill: { height: '100%', backgroundColor: '#9FD8E8' },
+  shBonus: { backgroundColor: '#FFB454' }, // COURAÇA ativa (âmbar)
   readout: { fontFamily: MONO, fontSize: 10, color: CSS.TEXT_DIM },
   enemyCount: {
     fontFamily: MONO,

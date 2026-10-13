@@ -30,6 +30,7 @@ interface Bot {
   bodyMat: THREE.MeshStandardMaterial;
   headMat: THREE.MeshStandardMaterial;
   visorMat: THREE.MeshBasicMaterial; // por bot: pisca branco quando cego
+  ping: THREE.Mesh; // SONAR: silhueta visível através de paredes (Etapa 8)
   hp: number;
   phase: BotPhase;
   phaseT: number; // timestamp de entrada na fase
@@ -45,6 +46,7 @@ interface Bot {
   strafeT: number; // próxima troca de direção do strafe
   flash: number; // brilho de dano 0..1
   blindUntil: number; // CENZURA: cego até este timestamp (Etapa 7)
+  revealUntil: number; // SONAR: revelado até aqui (Etapa 8)
   defuseK: number; // progresso do silenciamento 0..1
   retakeChain: Array<[number, number]>; // waypoints até o Diapasão
   retakeWp: number; // índice do waypoint do retake
@@ -174,7 +176,22 @@ export class BotSquad {
       const bar = new THREE.Mesh(barGeo, barMat);
       bar.position.y = 2.0;
 
-      group.add(body, head, bar);
+      // SONAR (Etapa 8): contorno magenta do operador revelado — desenha
+      // por cima de tudo (sem depth test) para atravessar paredes
+      const pingMat = new THREE.MeshBasicMaterial({
+        color: COLORS.MAGENTA,
+        transparent: true,
+        opacity: 0.0,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const ping = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.98, 4, 10), pingMat);
+      ping.position.y = 0.98;
+      ping.renderOrder = 999;
+      ping.visible = false;
+
+      group.add(body, head, bar, ping);
       group.position.set(route[0][0], 0, route[0][1]);
       scene.add(group);
 
@@ -192,6 +209,7 @@ export class BotSquad {
         bodyMat,
         headMat,
         visorMat,
+        ping,
         hp: BOTS.HP,
         phase: 'patrol',
         phaseT: 0,
@@ -207,6 +225,7 @@ export class BotSquad {
         strafeT: 0,
         flash: 0,
         blindUntil: 0,
+        revealUntil: 0,
         defuseK: 0,
         retakeChain: [],
         retakeWp: 0,
@@ -286,6 +305,65 @@ export class BotSquad {
     }
   }
 
+  /**
+   * SONAR (Traço da ECO, Etapa 8): revela operadores num raio — as
+   * silhuetas ficam visíveis através das paredes por um tempo.
+   * Diferente da CENZURA, não precisa de linha de visão.
+   */
+  revealNear(playerPos: THREE.Vector3, range: number, until: number) {
+    for (const b of this.bots) {
+      if (b.phase === 'dying' || b.phase === 'dead') continue;
+      const d = Math.hypot(
+        b.group.position.x - playerPos.x,
+        b.group.position.z - playerPos.z
+      );
+      if (d <= range) {
+        b.revealUntil = Math.max(b.revealUntil, until);
+      }
+    }
+  }
+
+  /**
+   * ONDA DE CHOQUE (Traço do GRAVE, Etapa 8): detonação ao redor do
+   * jogador — fere e arremessa operadores com linha de visão livre
+   * (parede bloqueia a onda). Retorna quantos foram atingidos.
+   */
+  shockwave(
+    playerPos: THREE.Vector3,
+    range: number,
+    dmg: number,
+    push: number,
+    blocked: (x: number, z: number) => boolean
+  ): number {
+    let hitCount = 0;
+    for (const b of this.bots) {
+      if (b.phase === 'dying' || b.phase === 'dead') continue;
+      const dx = b.group.position.x - playerPos.x;
+      const dz = b.group.position.z - playerPos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > range || !this.los(b, playerPos)) continue;
+      hitCount++;
+
+      // empurrão radial em subpassos curtos (sem atravessar parede)
+      const inv = 1 / (d || 1);
+      let left = push;
+      while (left > 0.001) {
+        const step = Math.min(0.25, left);
+        left -= step;
+        const nx = b.group.position.x + dx * inv * step;
+        const nz = b.group.position.z + dz * inv * step;
+        if (blocked(nx, nz)) break;
+        b.group.position.x = nx;
+        b.group.position.z = nz;
+      }
+
+      // o dano passa pelo canal normal: interrompe silenciamento,
+      // alerta o esquadrão e pode abater
+      this.damage(b, dmg, false);
+    }
+    return hitCount;
+  }
+
   /** Tiro do jogador ecoou — bots dentro do alcance de audição entram em alerta. */
   heardShot(playerPos: THREE.Vector3, now: number) {
     for (const b of this.bots) {
@@ -320,6 +398,8 @@ export class BotSquad {
       b.strafeT = 0;
       b.flash = 0;
       b.blindUntil = 0;
+      b.revealUntil = 0;
+      b.ping.visible = false;
       b.defuseK = 0;
       b.retakeChain = [];
       b.retakeWp = 0;
@@ -345,6 +425,16 @@ export class BotSquad {
     for (const b of this.bots) {
       // barra de vida encara a câmera
       b.bar.quaternion.copy(ctx.camera.quaternion);
+
+      // SONAR: silhueta magenta pulsando enquanto revelado (Etapa 8)
+      const revealed = now < b.revealUntil;
+      if (revealed) {
+        const k = 0.55 + Math.abs(Math.sin(now / 140)) * 0.45;
+        b.ping.visible = true;
+        (b.ping.material as THREE.MeshBasicMaterial).opacity = 0.85 * k;
+      } else if (b.ping.visible) {
+        b.ping.visible = false;
+      }
 
       // decaimento do brilho de dano
       if (b.flash > 0) {

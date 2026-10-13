@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NativeSyntheticEvent,
   NativeTouchEvent,
@@ -18,6 +18,7 @@ import { BotSquad } from '../game/Bots';
 import { RoundManager } from '../game/Round';
 import { sprayAt } from '../game/Legato';
 import {
+  AGENTS,
   CSS,
   COLORS,
   EYE_HEIGHT,
@@ -36,6 +37,7 @@ import {
   TRACER_MS,
   WEAPONS,
 } from '../config/constants';
+import type { TracoKey } from '../config/constants';
 import {
   gameStats,
   hudEvents,
@@ -43,6 +45,7 @@ import {
   lookState,
   playerVitals,
   roundState,
+  sessionState,
   settings,
   tracoState,
 } from './state';
@@ -64,9 +67,9 @@ interface Tracer {
 /**
  * Game — GLView (OpenGL ES nativo), renderer three.js e loop.
  *
- * Etapa 7: DIRACs correm para silenciar o Diapasão plantado; o jogador
- * recebe Traços — CENZURA (cega operadores com linha de visão) e
- * BARREIRA (muro de ressonância que bloqueia visão, balas e passagem).
+ * Etapa 8: agente CORO selecionável antes da partida — cada kit tem dois
+ * Traços próprios (MUDO: CENZURA/BARREIRA · ECO: IMPULSO/SONAR ·
+ * GRAVE: COURAÇA/ONDA) e um multiplicador de velocidade.
  *
  * Blindagem: qualquer exceção no init do GL ou no loop aparece num painel
  * legível (em vez de crash cego) — facilita diagnóstico em aparelho real.
@@ -76,14 +79,26 @@ export default function Game() {
   const { width } = useWindowDimensions();
   const [fatal, setFatal] = useState<{ message: string; stack: string } | null>(null);
   const [glKey, setGlKey] = useState(0);
+  // handle de encerramento do loop — chamado quando o Game desmonta
+  // (troca de agente) para não renderizar num contexto GL morto
+  const stopRef = useRef<(() => void) | null>(null);
 
-  const onContextCreate = useCallback((gl: ExpoWebGLRenderingContext) => {
-    try {
-      runGame(gl, setFatal);
-    } catch (e) {
-      reportFatal(e, setFatal);
-    }
+  useEffect(() => {
+    return () => {
+      stopRef.current?.();
+    };
   }, []);
+
+  const onContextCreate = useCallback(
+    (gl: ExpoWebGLRenderingContext) => {
+      try {
+        runGame(gl, setFatal, stopRef);
+      } catch (e) {
+        reportFatal(e, setFatal);
+      }
+    },
+    []
+  );
 
   if (fatal) {
     return (
@@ -159,9 +174,15 @@ function reportFatal(
 }
 
 /** Todo o motor de jogo, isolado para capturar exceções com contexto. */
-function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string; stack: string }) => void) {
+function runGame(
+  gl: ExpoWebGLRenderingContext,
+  setFatal: (v: { message: string; stack: string }) => void,
+  stopRef: React.MutableRefObject<(() => void) | null>
+) {
   const w = gl.drawingBufferWidth;
   const h = gl.drawingBufferHeight;
+  // kit do agente escolhido na sessão (fixo durante a partida)
+  const A = AGENTS[sessionState.agent];
 
   // --- cena ---
   const scene = new THREE.Scene();
@@ -332,29 +353,81 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
 
   const CENZURA_MS = 450; // duração do anel visual
 
-  const useTraco = (kind: 'cenzura' | 'barreira', nowMs: number) => {
+  // ECO: IMPULSO — arremesso em andamento (direção + término)
+  let dashUntil = 0;
+  let dashX = 0;
+  let dashZ = 0;
+
+  const useTraco = (kind: TracoKey, nowMs: number) => {
     const playerAlive = playerVitals.hp > 0;
     const combatOk = roundState.phase === 'live' || roundState.phase === 'end';
-    if (!combatOk || !playerAlive) return;
+    const spec = A.tracos.find((t) => t.key === kind);
+    if (!combatOk || !playerAlive || !spec) return; // só Traços do próprio kit
+    if (tracoState.uses[kind] <= 0 || nowMs < tracoState.readyAt[kind]) return;
 
-    if (kind === 'cenzura') {
-      if (tracoState.cenzura <= 0 || nowMs < tracoState.cenzuraReadyAt) return;
-      tracoState.cenzura--;
-      tracoState.cenzuraReadyAt = nowMs + TRACOS.CENZURA_CD_MS;
-      squad.blindNear(
-        camera.position,
-        nowMs,
-        TRACOS.CENZURA_RANGE,
-        TRACOS.CENZURA_BLIND_MS
-      );
-      spawnPulse(0xf2fbff); // clarão branco no chão
-      hudEvents.emit({ type: 'traco', kind: 'cenzura' });
-    } else {
-      if (tracoState.barreira <= 0 || barrier) return; // um muro por vez
-      tracoState.barreira--;
-      spawnBarrier(nowMs);
-      hudEvents.emit({ type: 'traco', kind: 'barreira' });
+    switch (kind) {
+      case 'cenzura': {
+        squad.blindNear(
+          camera.position,
+          nowMs,
+          TRACOS.CENZURA_RANGE,
+          TRACOS.CENZURA_BLIND_MS
+        );
+        spawnPulse(0xf2fbff); // clarão branco no chão
+        break;
+      }
+      case 'barreira': {
+        if (barrier) return; // um muro por vez
+        spawnBarrier(nowMs);
+        break;
+      }
+      case 'impulso': {
+        // direção do arremesso: joystick se ativo, senão a mira
+        const sin = Math.sin(lookState.yaw);
+        const cos = Math.cos(lookState.yaw);
+        let dx = -sin * inputState.moveZ + cos * inputState.moveX;
+        let dz = -cos * inputState.moveZ - sin * inputState.moveX;
+        const len = Math.hypot(dx, dz);
+        if (len < 0.01) {
+          dx = -sin;
+          dz = -cos;
+        } else {
+          dx /= len;
+          dz /= len;
+        }
+        dashX = dx;
+        dashZ = dz;
+        dashUntil = nowMs + TRACOS.IMPULSO_MS;
+        spawnPulse(COLORS.TEAL);
+        break;
+      }
+      case 'sonar': {
+        squad.revealNear(camera.position, TRACOS.SONAR_RANGE, nowMs + TRACOS.SONAR_MS);
+        spawnPulse(0x9fd8e8);
+        break;
+      }
+      case 'couraca': {
+        playerVitals.shieldBonus = TRACOS.COURACA_SHIELD;
+        playerVitals.shieldBonusUntil = nowMs + TRACOS.COURACA_MS;
+        spawnPulse(0xffb454);
+        break;
+      }
+      case 'onda': {
+        squad.shockwave(
+          camera.position,
+          TRACOS.ONDA_RANGE,
+          TRACOS.ONDA_DMG,
+          TRACOS.ONDA_PUSH,
+          blocked
+        );
+        spawnPulse(COLORS.MAGENTA);
+        break;
+      }
     }
+
+    tracoState.uses[kind]--;
+    if (spec.cdMs > 0) tracoState.readyAt[kind] = nowMs + spec.cdMs;
+    hudEvents.emit({ type: 'traco', kind });
   };
 
   // --- estado da arma (por rodada; espelha roundState.weapon) ---
@@ -376,10 +449,14 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
     burstIdx = 0;
     gameStats.ammo = ammo;
     gameStats.reloading = false;
-    // Traços da rodada (Etapa 7)
-    tracoState.cenzura = TRACOS.CENZURA_USES;
-    tracoState.barreira = TRACOS.BARREIRA_USES;
-    tracoState.cenzuraReadyAt = 0;
+    // Traços da rodada (Etapa 7/8): recarga do kit do agente
+    for (const t of A.tracos) {
+      tracoState.uses[t.key] = t.uses;
+      tracoState.readyAt[t.key] = 0;
+    }
+    dashUntil = 0;
+    playerVitals.shieldBonus = 0;
+    playerVitals.shieldBonusUntil = 0;
     removeBarrier();
     bundle.clearPlant();
     range.reset();
@@ -392,10 +469,16 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
     onPlanted: (site) => bundle.plant(site),
   });
 
-  // dano do bot acertando o jogador: escudo absorve, HUD pisca, morte encerra
+  // dano do bot acertando o jogador: COURAÇA (temporal) e traje absorvem,
+  // HUD pisca, morte encerra
   const hitPlayer = (dmg: number) => {
     if (playerVitals.hp <= 0) return;
     let left = dmg;
+    if (playerVitals.shieldBonus > 0) {
+      const absorbed = Math.min(playerVitals.shieldBonus, left);
+      playerVitals.shieldBonus -= absorbed;
+      left -= absorbed;
+    }
     if (playerVitals.shield > 0) {
       const absorbed = Math.min(playerVitals.shield, left);
       playerVitals.shield -= absorbed;
@@ -570,11 +653,26 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
       const playerAlive = playerVitals.hp > 0;
       const mx = inputState.moveX;
       const mz = inputState.moveZ;
-      const moved = playerAlive && (mx !== 0 || mz !== 0);
-      if (moved) {
+      const dashing = playerAlive && now < dashUntil;
+      const moved = playerAlive && (dashing || mx !== 0 || mz !== 0);
+      if (dashing) {
+        // IMPULSO (ECO): subpassos curtos para não atravessar paredes
+        let left = (TRACOS.IMPULSO_DIST / TRACOS.IMPULSO_MS) * dtMs;
+        while (left > 0.001) {
+          const step = Math.min(0.2, left);
+          left -= step;
+          const nx = camera.position.x + dashX * step;
+          const nz = camera.position.z + dashZ * step;
+          const okX = !blocked(nx, camera.position.z);
+          const okZ = !blocked(camera.position.x, nz);
+          if (okX) camera.position.x = nx;
+          if (okZ) camera.position.z = nz;
+          if (!okX && !okZ) break; // encalhou numa quina
+        }
+      } else if (playerAlive && (mx !== 0 || mz !== 0)) {
         const sin = Math.sin(lookState.yaw);
         const cos = Math.cos(lookState.yaw);
-        const step = MOVE_SPEED * dt;
+        const step = MOVE_SPEED * A.speedMul * dt;
         const dx = (-sin * mz + cos * mx) * step;
         const dz = (-cos * mz - sin * mx) * step;
         if (!blocked(camera.position.x + dx, camera.position.z)) {
@@ -583,6 +681,21 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
         if (!blocked(camera.position.x, camera.position.z + dz)) {
           camera.position.z += dz;
         }
+      }
+
+      // IMPULSO: abertura do campo de visão (sensação de velocidade)
+      const targetFov = dashing ? 84 : 75;
+      if (Math.abs(camera.fov - targetFov) > 0.05) {
+        camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
+        camera.updateProjectionMatrix();
+      }
+
+      // COURAÇA (GRAVE): escudo temporal expira
+      if (
+        playerVitals.shieldBonus > 0 &&
+        now >= playerVitals.shieldBonusUntil
+      ) {
+        playerVitals.shieldBonus = 0;
       }
 
       // death-cam: câmera despenca e rola quando o jogador cai
@@ -621,11 +734,17 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
       gameStats.defusing = squad.info.defusing;
       gameStats.defuseProgress = squad.info.defuseProgress;
 
-      // Traços pedidos pelo HUD (Etapa 7)
+      // Traços pedidos pelo HUD (Etapa 7/8)
       if (inputState.tracoQueued) {
         const kind = inputState.tracoQueued;
         inputState.tracoQueued = null;
         useTraco(kind, now);
+      }
+
+      // partida encerrada → voltar à seleção de agente (Etapa 8)
+      if (inputState.agentSelectQueued) {
+        inputState.agentSelectQueued = false;
+        hudEvents.emit({ type: 'backToSelect' });
       }
 
       // BARREIRA: pulsa e some no fim da vida útil
@@ -714,6 +833,10 @@ function runGame(gl: ExpoWebGLRenderingContext, setFatal: (v: { message: string;
     }
   };
   loop();
+  stopRef.current = () => {
+    stopped = true;
+    cancelAnimationFrame(raf);
+  };
 }
 
 const styles = StyleSheet.create({

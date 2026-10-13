@@ -2,9 +2,12 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import type { AgentId } from './src/config/constants';
 import Game from './src/core/Game';
 import Hud from './src/ui/Hud';
+import AgentSelect from './src/ui/AgentSelect';
 import { CSS } from './src/config/constants';
+import { hudEvents, sessionState } from './src/core/state';
 
 /**
  * ErrorBoundary — se qualquer componente quebrar, mostra o erro em texto
@@ -46,10 +49,12 @@ class ErrorBoundary extends React.Component<
 
 /**
  * PULSO — FPS tático 5v5 por rodadas (mobile).
- * Etapa 5: economia em dB, fases de compra/ação, Diapasão plantável e
- * placar de rodadas CORO × DIRAC.
+ * Etapa 8: seleção de operador CORO (MUDO, ECO, GRAVE) antes da
+ * partida; o loop 3D só nasce depois da escolha.
  */
 export default function App() {
+  const [agent, setAgent] = React.useState<AgentId | null>(null);
+
   React.useEffect(() => {
     // trava em paisagem mesmo quando app.json não é aplicável (ex.: Snack)
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
@@ -58,11 +63,32 @@ export default function App() {
     };
   }, []);
 
+  // fim de partida → pedido de troca de agente: desmonta o jogo
+  // e volta à seleção (Etapa 8)
+  React.useEffect(() => {
+    if (agent == null) return;
+    const off = hudEvents.subscribe((e) => {
+      if (e.type === 'backToSelect') setAgent(null);
+    });
+    return off;
+  }, [agent]);
+
   return (
     <ErrorBoundary>
       <View style={styles.root}>
-        <Game />
-        <Hud />
+        {agent == null ? (
+          <AgentSelect
+            onPick={(a) => {
+              sessionState.agent = a; // o motor lê daqui ao montar
+              setAgent(a);
+            }}
+          />
+        ) : (
+          <>
+            <Game key={agent} />
+            <Hud />
+          </>
+        )}
         <StatusBar hidden style="light" />
       </View>
     </ErrorBoundary>

@@ -2,7 +2,7 @@
 // (React Native). O loop escreve; o HUD lê por polling — sem re-render
 // de componente a cada frame.
 
-import type { WeaponId } from '../config/constants';
+import type { AgentId, TracoKey, WeaponId } from '../config/constants';
 import { TRACOS } from '../config/constants';
 
 export const lookState = { yaw: 0, pitch: 0 };
@@ -15,7 +15,14 @@ export const inputState = {
   plantHeld: false, // botão PLANTAR pressionado (canal de plantio)
   readyQueued: false, // HUD pede para encerrar a fase de compra
   restartQueued: false, // HUD pede reinício da partida (fim de jogo)
-  tracoQueued: null as 'cenzura' | 'barreira' | null, // Traço pedido pelo HUD
+  tracoQueued: null as TracoKey | null, // Traço pedido pelo HUD
+  agentSelectQueued: false, // HUD pede para voltar à seleção de agente
+};
+
+// Sessão (Etapa 8): o agente escolhido antes da partida; persiste entre
+// rodadas e só muda passando pela tela de seleção.
+export const sessionState = {
+  agent: 'MUDO' as AgentId,
 };
 
 export const settings = {
@@ -36,17 +43,34 @@ export const gameStats = {
   defuseProgress: 0, // 0..1 do canal de silenciamento
 };
 
-// Traços do agente (Etapa 7) — usos por rodada + recarga da CENZURA.
+// Traços do agente (Etapa 7/8) — usos por rodada + recarga, por Traço.
+// Apenas as chaves do kit do agente atual são relevantes; as outras
+// ficam zeradas (sem efeito).
 export const tracoState = {
-  cenzura: TRACOS.CENZURA_USES,
-  barreira: TRACOS.BARREIRA_USES,
-  cenzuraReadyAt: 0, // timestamp do próximo uso disponível
+  uses: {
+    cenzura: TRACOS.CENZURA_USES,
+    barreira: TRACOS.BARREIRA_USES,
+    impulso: TRACOS.IMPULSO_USES,
+    sonar: TRACOS.SONAR_USES,
+    couraca: TRACOS.COURACA_USES,
+    onda: TRACOS.ONDA_USES,
+  } as Record<TracoKey, number>,
+  readyAt: {
+    cenzura: 0,
+    barreira: 0,
+    impulso: 0,
+    sonar: 0,
+    couraca: 0,
+    onda: 0,
+  } as Record<TracoKey, number>,
 };
 
 // Vitais do jogador (Etapa 5 — ainda sem fontes de dano, estrutura pronta).
 export const playerVitals = {
   hp: 100,
-  shield: 0,
+  shield: 0, // escudo comprado (traje), dura a rodada
+  shieldBonus: 0, // escudo temporal da COURAÇA (GRAVE)
+  shieldBonusUntil: 0, // timestamp em que a COURAÇA expira
 };
 
 // Estado da partida (Etapa 5 — economia e rodadas). Escrito pelo
@@ -85,9 +109,10 @@ export type HudEvent =
   | { type: 'reload' }
   | { type: 'planted'; site: 'A' | 'B' }
   | { type: 'playerHit'; dmg: number; hp: number }
-  | { type: 'traco'; kind: 'cenzura' | 'barreira' } // Traço executado (Etapa 7)
+  | { type: 'traco'; kind: TracoKey } // Traço executado (Etapa 7/8)
   | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim' | 'silenced'; coro: number; dirac: number; dB: number }
-  | { type: 'matchOver'; winner: 'CORO' | 'DIRAC' };
+  | { type: 'matchOver'; winner: 'CORO' | 'DIRAC' }
+  | { type: 'backToSelect' }; // partida encerrada → seleção de agente (Etapa 8)
 
 // Mini event-bus para efeitos do HUD (pulso da mira, hitmarker etc.)
 export const hudEvents = (() => {

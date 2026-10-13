@@ -147,8 +147,9 @@ export const BOTS = {
   LOSE_MS: 900, // sem te ver por isto → desiste
 } as const;
 
-// --- Traços do agente (Etapa 7) ---
+// --- Traços (Etapa 7/8) — números por kit ---
 export const TRACOS = {
+  // MUDO — tático
   CENZURA_USES: 2, // usos por rodada
   CENZURA_BLIND_MS: 2600, // duração da cegueira
   CENZURA_RANGE: 14, // alcance em operadores com linha de visão
@@ -158,7 +159,128 @@ export const TRACOS = {
   BARREIRA_WIDTH: 4, // m
   BARREIRA_HEIGHT: 2.6, // m
   BARREIRA_DIST: 3.2, // distância erguida à frente do jogador
+  // ECO — batedora
+  IMPULSO_USES: 2,
+  IMPULSO_DIST: 8.5, // alcance total do arremesso (m)
+  IMPULSO_MS: 260, // duração do impulso
+  IMPULSO_CD_MS: 9000,
+  SONAR_USES: 1,
+  SONAR_RANGE: 22, // raio revelado (m)
+  SONAR_MS: 5000, // duração da revelação
+  // GRAVE — vanguarda
+  COURACA_USES: 1,
+  COURACA_SHIELD: 50, // escudo temporal
+  COURACA_MS: 10000, // duração do escudo temporal
+  ONDA_USES: 1,
+  ONDA_RANGE: 6.5, // raio da onda de choque (m)
+  ONDA_DMG: 55,
+  ONDA_PUSH: 3.5, // empurrão nos operadores (m)
 } as const;
+
+// --- agentes jogáveis (Etapa 8) ---
+export type TracoKey = 'cenzura' | 'barreira' | 'impulso' | 'sonar' | 'couraca' | 'onda';
+
+export interface TracoSpec {
+  key: TracoKey;
+  label: string;
+  glyph: string; // glifo mostrado no botão e na loja de agentes
+  uses: number;
+  cdMs: number; // 0 = sem recarga entre usos
+  desc: string; // uma linha, linguagem de campo
+}
+
+export type AgentId = 'MUDO' | 'ECO' | 'GRAVE';
+
+export interface AgentSpec {
+  nome: AgentId;
+  funcao: string; // papel tático no CORO
+  cor: number; // cor 3D de destaque
+  corCss: string; // mesma cor para o HUD
+  bio: string;
+  speedMul: number; // multiplicador de MOVE_SPEED (1 = padrão)
+  tracos: [TracoSpec, TracoSpec]; // todo kit tem exatamente 2 Traços
+}
+
+export const AGENTS: Record<AgentId, AgentSpec> = {
+  MUDO: {
+    nome: 'MUDO',
+    funcao: 'TÁTICO',
+    cor: 0x9fd8e8,
+    corCss: '#9FD8E8',
+    bio: 'engenheiro de acústica que apagou a própria voz; controla o que se ouve no subsolo',
+    speedMul: 1,
+    tracos: [
+      {
+        key: 'cenzura',
+        label: 'CENZURA',
+        glyph: '◈',
+        uses: TRACOS.CENZURA_USES,
+        cdMs: TRACOS.CENZURA_CD_MS,
+        desc: 'cega operadores com linha de visão e interrompe silenciamentos',
+      },
+      {
+        key: 'barreira',
+        label: 'BARREIRA',
+        glyph: '▤',
+        uses: TRACOS.BARREIRA_USES,
+        cdMs: 0,
+        desc: 'muro de ressonância que bloqueia visão, balas e passagem',
+      },
+    ],
+  },
+  ECO: {
+    nome: 'ECO',
+    funcao: 'BATEDORA',
+    cor: COLORS.TEAL,
+    corCss: CSS.TEAL,
+    bio: 'ex-mensageira dos túneis; ninguém chega antes, ninguém escapa sem ser notada',
+    speedMul: 1.1,
+    tracos: [
+      {
+        key: 'impulso',
+        label: 'IMPULSO',
+        glyph: '⇢',
+        uses: TRACOS.IMPULSO_USES,
+        cdMs: TRACOS.IMPULSO_CD_MS,
+        desc: 'arremesso de ressonância na direção do movimento',
+      },
+      {
+        key: 'sonar',
+        label: 'SONAR',
+        glyph: '◎',
+        uses: TRACOS.SONAR_USES,
+        cdMs: 0,
+        desc: 'revela operadores próximos através das paredes',
+      },
+    ],
+  },
+  GRAVE: {
+    nome: 'GRAVE',
+    funcao: 'VANGUARDA',
+    cor: 0xffb454,
+    corCss: '#FFB454',
+    bio: 'sonoplasta de obras pesadas; entra primeiro, de escudo erguido, e abre caminho',
+    speedMul: 0.94,
+    tracos: [
+      {
+        key: 'couraca',
+        label: 'COURAÇA',
+        glyph: '⛨',
+        uses: TRACOS.COURACA_USES,
+        cdMs: 0,
+        desc: 'escudo temporal de 50 que absorve dano por 10s',
+      },
+      {
+        key: 'onda',
+        label: 'ONDA',
+        glyph: '✸',
+        uses: TRACOS.ONDA_USES,
+        cdMs: 0,
+        desc: 'detonação que fere e arremessa operadores ao redor',
+      },
+    ],
+  },
+};
 
 // --- silenciar o Diapasão (retake DIRAC, Etapa 7) ---
 export const DEFUSE = {
