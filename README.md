@@ -28,11 +28,15 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Agentes CORO (v0.8)** — escolha o operador antes da partida; cada kit tem dois Traços e uma velocidade própria:
+  - **MUDO · TÁTICO** — ◈ CENZURA cega operadores com linha de visão · ▤ BARREIRA ergue muro de ressonância
+  - **ECO · BATEDORA** (+10% velocidade) — ⇢ IMPULSO arremesso de 8,5m · ◎ SONAR revela inimigos através de paredes
+  - **GRAVE · VANGUARDA** (−6% velocidade) — ⛨ COURAÇA escudo temporal de 50 · ✸ ONDA DE CHOQUE fere e arremessa quem está perto
 - **Economia dB** — créditos por abates, vitórias e derrotas (cap 9.000); compre arsenais (STACCATO, LEGATO) e trajes com escudo.
 - **Rodadas** — fase de compra → ação → desfecho; primeira facção a 7 rodadas vence a partida.
 - **Diapasão** — o objetivo: plante no Site A ou B e proteja a carga por 40s.
 - **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas.
-- **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate e rajadas.
+- **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
 - **Mapa SUBSOLO** — 40×32m com corredores, sites A/B, caixotes e colisão real.
 
 ## 🗺️ Roadmap
@@ -44,7 +48,8 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - [x] **5** — Economia dB, rodadas, plantio do Diapasão, loja
 - [x] **6** — Bots DIRAC com IA (patrulha, percepção, combate)
 - [x] **7** — Traços (◈ CENZURA cega · ▤ BARREIRA ergue muro) + DIRACs que silenciam o Diapasão
-- [ ] **8+** — Agentes jogáveis com kits próprios, matchmaking 5v5, áudio, polimento
+- [x] **8** — Agentes jogáveis com kits próprios (MUDO, ECO, GRAVE) + troca de agente entre partidas
+- [ ] **9+** — Áudio e feedback, matchmaking 5v5, polimento
 
 ## 🔧 Como o APK é feito (automático)
 
