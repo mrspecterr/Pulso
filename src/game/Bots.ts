@@ -141,6 +141,25 @@ export class BotSquad {
     const barGeo = new THREE.PlaneGeometry(0.72, 0.075);
     const visorGeo = new THREE.BoxGeometry(0.2, 0.06, 0.05);
 
+    // peças de armadura DIRAC (compartilhadas; filhos do corpo — não entram
+    // no raycast, que só testa corpo e cabeça)
+    const armorGeo = new THREE.BoxGeometry(0.36, 0.44, 0.2);
+    const packGeo = new THREE.BoxGeometry(0.32, 0.42, 0.15);
+    const shoulderGeo = new THREE.BoxGeometry(0.15, 0.1, 0.24);
+    const gunGeo = new THREE.BoxGeometry(0.06, 0.1, 0.46);
+    const thrusterGeo = new THREE.BoxGeometry(0.12, 0.06, 0.03);
+    const armorMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3448,
+      roughness: 0.55,
+      metalness: 0.22,
+    });
+    const packMat = new THREE.MeshStandardMaterial({
+      color: 0x2e2a3c,
+      roughness: 0.65,
+      metalness: 0.14,
+    });
+    const thrusterMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
+
     ROUTES.forEach((route, id) => {
       const bodyMat = new THREE.MeshStandardMaterial({
         color: 0x232c38,
@@ -166,8 +185,30 @@ export class BotSquad {
       const group = new THREE.Group();
       const body = new THREE.Mesh(bodyGeo, bodyMat);
       body.position.y = 0.98;
+      body.castShadow = true;
+
+      // armadura + propulsor de mochila + fuzil seguro na mão direita
+      const chest = new THREE.Mesh(armorGeo, armorMat);
+      chest.position.set(0, 0.14, 0.13);
+      chest.castShadow = true;
+      const pack = new THREE.Mesh(packGeo, packMat);
+      pack.position.set(0, 0.12, -0.21);
+      pack.castShadow = true;
+      const thruster = new THREE.Mesh(thrusterGeo, thrusterMat);
+      thruster.position.set(0, 0.28, -0.3);
+      pack.add(thruster);
+      const shL = new THREE.Mesh(shoulderGeo, armorMat);
+      shL.position.set(-0.3, 0.36, 0);
+      const shR = new THREE.Mesh(shoulderGeo, armorMat);
+      shR.position.set(0.3, 0.36, 0);
+      const gun = new THREE.Mesh(gunGeo, packMat);
+      gun.position.set(0.26, 0.02, 0.16);
+      gun.rotation.x = 0.06;
+      body.add(chest, pack, shL, shR, gun);
+
       const head = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.66;
+      head.castShadow = true;
       // visor — o "olho" magenta do operador (frente local +Z)
       const visorMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
       const visor = new THREE.Mesh(visorGeo, visorMat);

@@ -17,12 +17,13 @@ import { TargetRange } from '../game/Targets';
 import { BotSquad } from '../game/Bots';
 import { RoundManager } from '../game/Round';
 import { sprayAt } from '../game/Legato';
+import { WeaponSystem } from '../game/Weapon';
+import { Sparks } from '../game/Sparks';
 import {
   AGENTS,
   CSS,
   COLORS,
   EYE_HEIGHT,
-  IMPACT_MS,
   LEFT_ZONE,
   LOOK_SENSITIVITY,
   MOVE_SPEED,
@@ -207,10 +208,26 @@ function runGame(
     g.__PULSO__.bots = squad.info;
   }
 
+  // a câmera precisa estar na cena para os filhos dela (a arma) renderizarem
+  scene.add(camera);
+  const weapon = new WeaponSystem(camera);
+  weapon.setWeapon(roundState.weapon);
+  weapon.attachShells(scene);
+  // luz de preenchimento presa à câmera: garante que o viewmodel nunca vire
+  // silhueta preta contra o cenário escuro (alcance curto, só afeta a arma)
+  const gunFill = new THREE.PointLight(0xfff1e0, 0.55, 1.7, 2);
+  gunFill.position.set(0.18, 0.08, -0.22);
+  camera.add(gunFill);
+
   // --- renderer ---
   const renderer = new Renderer({ gl });
   renderer.setSize(w, h);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // direção de arte (Etapa 9): filmic + sombras suaves
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.55;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   // --- efeitos de disparo ---
   const raycaster = new THREE.Raycaster();
@@ -220,15 +237,9 @@ function runGame(
   scene.add(muzzleLight);
   let muzzleUntil = 0;
 
-  const impactLight = new THREE.PointLight(COLORS.IMPACT, 0, 6, 2);
-  scene.add(impactLight);
-  const impactMesh = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.07, 1),
-    new THREE.MeshBasicMaterial({ color: COLORS.IMPACT, transparent: true, opacity: 0.95 })
-  );
-  impactMesh.visible = false;
-  scene.add(impactMesh);
-  let impactUntil = 0;
+  // faíscas de impacto (Etapa 9 — substituem o flash estático antigo)
+  const sparks = new Sparks(scene);
+  const tmpNormal = new THREE.Vector3();
 
   const tracers: Tracer[] = [];
   const fwd = new THREE.Vector3();
@@ -445,6 +456,7 @@ function runGame(
     lookState.pitch = 0;
     lastWeapon = roundState.weapon;
     ammo = WEAPONS[lastWeapon].MAG;
+    weapon.setWeapon(lastWeapon);
     reloading = false;
     burstIdx = 0;
     gameStats.ammo = ammo;
@@ -512,6 +524,7 @@ function runGame(
       lastWeapon = roundState.weapon;
       ammo = W.MAG;
       gameStats.ammo = ammo;
+      weapon.setWeapon(roundState.weapon);
     }
 
     // reinicia o spray se o dedo ficou longe do gatilho
@@ -542,12 +555,8 @@ function runGame(
     );
     const hit = hits.length > 0 ? hits[0] : null;
 
-    // origem visual: boca da arma
-    const start = tmpVec
-      .copy(camera.position)
-      .addScaledVector(fwd, 0.35)
-      .addScaledVector(right, 0.22)
-      .addScaledVector(up, -0.16);
+    // origem visual: boca da arma (viewmodel em primeira pessoa)
+    const start = weapon.muzzleWorld(tmpVec);
 
     // aplica dano se acertou alguém (treino ou DIRAC)
     let end: THREE.Vector3;
@@ -573,21 +582,17 @@ function runGame(
         hudEvents.emit({ type: 'hit', head: isHead });
       }
       end = hit.point.clone();
-      // faísca no alvo (reutiliza o efeito de impacto)
-      impactLight.position.copy(hit.point);
-      impactLight.intensity = isHead ? 10 : 6;
-      impactMesh.position.copy(hit.point);
-      impactMesh.visible = true;
-      impactMesh.scale.setScalar(isHead ? 1.4 : 1);
-      impactUntil = nowMs + IMPACT_MS;
+      // faíscas de acerto no operador (magenta)
+      sparks.burst(hit.point, null, 0xff8fc4, isHead ? 12 : 8, 2.6);
     } else if (hit) {
       end = hit.point.clone();
-      impactLight.position.copy(hit.point);
-      impactLight.intensity = 7;
-      impactMesh.position.copy(hit.point);
-      impactMesh.visible = true;
-      impactMesh.scale.setScalar(1);
-      impactUntil = nowMs + IMPACT_MS;
+      // faíscas no cenário, orientadas pela normal da superfície
+      if (hit.face) {
+        tmpNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
+        sparks.burst(hit.point, tmpNormal, 0xffe2ad, 10, 4.2);
+      } else {
+        sparks.burst(hit.point, null, 0xffe2ad, 10, 4.2);
+      }
     } else {
       end = start.clone().addScaledVector(tmpDir, TRACER_LENGTH);
     }
@@ -596,8 +601,10 @@ function runGame(
     spawnTracer(start, end);
 
     muzzleLight.position.copy(start);
-    muzzleLight.intensity = 12;
+    muzzleLight.intensity = 18;
     muzzleUntil = nowMs + MUZZLE_MS;
+    weapon.onFire(); // recuo + clarão + cápsula do viewmodel
+    viewPunch = Math.min(viewPunch + 0.7, 1.5); // chute da câmera
 
     ammo--;
     gameStats.ammo = ammo;
@@ -636,6 +643,9 @@ function runGame(
   let raf = 0;
   let last = performance.now();
   let stopped = false;
+  let prevYaw = lookState.yaw;
+  let prevPitch = lookState.pitch;
+  let viewPunch = 0; // recuo visual da câmera (sobe e decai)
   const loop = () => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
@@ -647,7 +657,8 @@ function runGame(
 
       // mira
       camera.rotation.y = lookState.yaw;
-      camera.rotation.x = lookState.pitch;
+      viewPunch *= Math.exp(-dt * 10);
+      camera.rotation.x = lookState.pitch + viewPunch * 0.014;
 
       // locomoção com colisão (morto não anda) — resolve eixo a eixo
       const playerAlive = playerVitals.hp > 0;
@@ -813,14 +824,20 @@ function runGame(
         }
       }
       if (now >= muzzleUntil) muzzleLight.intensity = 0;
-      if (now >= impactUntil) {
-        impactLight.intensity = 0;
-        impactMesh.visible = false;
-      } else {
-        const k = (impactUntil - now) / IMPACT_MS; // 1 → 0
-        impactMesh.scale.multiplyScalar(1 + (1 - k) * 0.12);
-        (impactMesh.material as THREE.MeshBasicMaterial).opacity = 0.95 * k;
-      }
+
+      // viewmodel (sway/bob/recuo/recarga) + faíscas
+      weapon.update(dt, {
+        moving: moved,
+        lookDX: lookState.yaw - prevYaw,
+        lookDY: lookState.pitch - prevPitch,
+        alive: playerAlive,
+        reloading,
+        reloadK: gameStats.reloadProgress,
+        weapon: roundState.weapon,
+      });
+      prevYaw = lookState.yaw;
+      prevPitch = lookState.pitch;
+      sparks.update(dt, camera);
 
       range.update(dt, camera);
       bundle.update(dt, now / 1000);

@@ -33,6 +33,25 @@ export class TargetRange {
     const headGeo = new THREE.SphereGeometry(0.18, 16, 12);
     const barGeo = new THREE.PlaneGeometry(0.72, 0.075);
 
+    // peças de armadura compartilhadas (não entram no raycast — só corpo e
+    // cabeça são malhas de acerto)
+    const armorGeo = new THREE.BoxGeometry(0.36, 0.44, 0.2);
+    const packGeo = new THREE.BoxGeometry(0.32, 0.42, 0.15);
+    const shoulderGeo = new THREE.BoxGeometry(0.15, 0.1, 0.24);
+    const beltGeo = new THREE.BoxGeometry(0.54, 0.09, 0.4);
+    const visorGeo = new THREE.BoxGeometry(0.2, 0.05, 0.05);
+    const armorMat = new THREE.MeshStandardMaterial({
+      color: 0x3a4450,
+      roughness: 0.55,
+      metalness: 0.2,
+    });
+    const packMat = new THREE.MeshStandardMaterial({
+      color: 0x2c343f,
+      roughness: 0.68,
+      metalness: 0.12,
+    });
+    const trimGlowMat = new THREE.MeshBasicMaterial({ color: COLORS.TEAL });
+
     spots.forEach(([x, z], id) => {
       const bodyMat = new THREE.MeshStandardMaterial({
         color: 0x2a3542,
@@ -52,8 +71,29 @@ export class TargetRange {
       const group = new THREE.Group();
       const body = new THREE.Mesh(bodyGeo, bodyMat);
       body.position.y = 0.98;
+      body.castShadow = true;
+
+      // armadura do boneco de treino (filhos do corpo)
+      const chest = new THREE.Mesh(armorGeo, armorMat);
+      chest.position.set(0, 0.14, 0.13);
+      chest.castShadow = true;
+      const pack = new THREE.Mesh(packGeo, packMat);
+      pack.position.set(0, 0.12, -0.21);
+      pack.castShadow = true;
+      const shL = new THREE.Mesh(shoulderGeo, armorMat);
+      shL.position.set(-0.3, 0.36, 0);
+      const shR = new THREE.Mesh(shoulderGeo, armorMat);
+      shR.position.set(0.3, 0.36, 0);
+      const belt = new THREE.Mesh(beltGeo, armorMat);
+      belt.position.set(0, -0.44, 0);
+      body.add(chest, pack, shL, shR, belt);
+
       const head = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.66;
+      head.castShadow = true;
+      const visor = new THREE.Mesh(visorGeo, trimGlowMat);
+      visor.position.set(0, 0.02, 0.16);
+      head.add(visor);
 
       // pedestal (visual, ancora o boneco no chão)
       const base = new THREE.Mesh(
@@ -61,6 +101,7 @@ export class TargetRange {
         new THREE.MeshStandardMaterial({ color: 0x212b36, roughness: 0.85 })
       );
       base.position.y = 0.06;
+      base.castShadow = true;
 
       const barMat = new THREE.MeshBasicMaterial({
         color: COLORS.TEAL,
