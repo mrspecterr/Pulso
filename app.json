@@ -1,17 +1,20 @@
 {
   "expo": {
-    "name": "pulso",
+    "name": "PULSO",
     "slug": "pulso",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "0.6.0",
+    "orientation": "landscape",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B0F14",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.pulso.game",
+      "versionCode": 6,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B0F14",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

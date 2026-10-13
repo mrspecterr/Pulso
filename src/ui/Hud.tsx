@@ -1,0 +1,394 @@
+import React, { useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { CSS, PLAYER_HP, WEAPONS } from '../config/constants';
+import { gameStats, inputState, lookState, playerVitals, roundState, settings } from '../core/state';
+import type { Phase } from '../core/state';
+import BuyMenu from './BuyMenu';
+import Crosshair from './Crosshair';
+import DamageVignette from './DamageVignette';
+import FireButton from './FireButton';
+import Hitmarker from './Hitmarker';
+import Joystick from './Joystick';
+import MatchOver from './MatchOver';
+import PlantButton from './PlantButton';
+import ReloadButton from './ReloadButton';
+
+const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+const SENS = [1, 1.5, 2];
+
+interface Snap {
+  ammo: number;
+  reloading: boolean;
+  reloadProgress: number;
+  shots: number;
+  hits: number;
+  kills: number;
+  headshots: number;
+  phase: Phase;
+  roundNum: number;
+  coro: number;
+  dirac: number;
+  dB: number;
+  weapon: string;
+  mag: number;
+  carrying: boolean;
+  planted: boolean;
+  inSite: 'A' | 'B' | null;
+  plantProgress: number;
+  outcome: 'pulse' | 'time' | 'elim' | null;
+  matchWinner: 'CORO' | 'DIRAC' | null;
+  hp: number;
+  shield: number;
+  enemies: number; // operadores DIRAC em campo
+  secLeft: number; // segundos da fase/carga atual
+}
+
+function readState(): Snap {
+  const now = performance.now();
+  const end =
+    roundState.phase === 'live' && roundState.planted
+      ? roundState.chargeEndsAt
+      : roundState.phaseEndsAt;
+  return {
+    ammo: gameStats.ammo,
+    reloading: gameStats.reloading,
+    reloadProgress: gameStats.reloadProgress,
+    shots: gameStats.shots,
+    hits: gameStats.hits,
+    kills: gameStats.kills,
+    headshots: gameStats.headshots,
+    phase: roundState.phase,
+    roundNum: roundState.roundNum,
+    coro: roundState.scoreCORO,
+    dirac: roundState.scoreDIRAC,
+    dB: roundState.dB,
+    weapon: roundState.weapon,
+    mag: WEAPONS[roundState.weapon].MAG,
+    carrying: roundState.carrying,
+    planted: roundState.planted,
+    inSite: roundState.inSite,
+    plantProgress: roundState.plantProgress,
+    outcome: roundState.outcome,
+    matchWinner: roundState.matchWinner,
+    hp: playerVitals.hp,
+    shield: playerVitals.shield,
+    enemies: gameStats.enemiesAlive,
+    secLeft: Math.max(0, Math.ceil((end - now) / 1000)),
+  };
+}
+
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+const PHASE_LABEL: Record<Phase, string> = {
+  buy: 'COMPRA',
+  live: 'AÇÃO',
+  end: 'FIM DE RODADA',
+  over: 'PARTIDA ENCERRADA',
+};
+
+/**
+ * Hud — overlay sobre a cena 3D (Etapa 5): placar de rodadas CORO × DIRAC,
+ * fases com timer, economia em dB, vitais, loja, plantio e fim de partida.
+ */
+export default function Hud() {
+  const [s, setS] = useState<Snap>(() => readState());
+  const [sensIdx, setSensIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setS(readState()), 100);
+    return () => clearInterval(id);
+  }, []);
+
+  const cycleSens = () => {
+    const next = (sensIdx + 1) % SENS.length;
+    setSensIdx(next);
+    settings.sensMultiplier = SENS[next];
+  };
+
+  const showCombat = s.phase === 'live' || s.phase === 'end';
+  const showPlant =
+    s.phase === 'live' && s.carrying && s.inSite !== null && !s.planted && s.hp > 0;
+  const timerCritical = s.phase === 'live' && s.secLeft <= 10;
+
+  return (
+    <View pointerEvents="box-none" style={styles.overlay}>
+      {/* ==== topo esquerdo: identidade + economia ==== */}
+      <View style={styles.tl}>
+        <Text style={styles.title}>PULSO</Text>
+        <Text style={styles.sub}>RODADA {s.roundNum} · v0.6</Text>
+        <Text style={styles.db}>{s.dB} dB</Text>
+        <Text style={styles.gun}>{s.weapon}</Text>
+        {s.carrying && s.phase === 'live' ? (
+          <View style={styles.chip}>
+            <Text style={styles.chipTxt}>◈ DIAPASÃO</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* ==== topo centro: placar + fase + timer ==== */}
+      <View style={styles.tc}>
+        <View style={styles.scoreRow}>
+          <View style={[styles.scoreSide, styles.coroSide]}>
+            <Text style={styles.scoreName}>CORO</Text>
+            <Text style={styles.scoreNum}>{s.coro}</Text>
+          </View>
+          <Text style={styles.scoreDash}>×</Text>
+          <View style={[styles.scoreSide, styles.diracSide]}>
+            <Text style={styles.scoreName}>DIRAC</Text>
+            <Text style={styles.scoreNum}>{s.dirac}</Text>
+          </View>
+        </View>
+        <Text style={styles.phaseLabel}>
+          {s.phase === 'live' && s.planted ? 'DIAPASÃO ATIVO' : PHASE_LABEL[s.phase]}
+        </Text>
+        {s.phase !== 'over' ? (
+          <Text
+            style={[
+              styles.timer,
+              s.phase === 'live' && s.planted ? styles.timerPulse : null,
+              timerCritical && !s.planted ? styles.timerCrit : null,
+            ]}
+          >
+            {mmss(s.secLeft)}
+          </Text>
+        ) : null}
+        {/* vitais: hp + escudo */}
+        <View style={styles.vitals}>
+          <View style={styles.hpBg}>
+            <View style={[styles.hpFill, { width: `${(s.hp / PLAYER_HP) * 100}%` }]} />
+          </View>
+          {s.shield > 0 ? (
+            <View style={styles.shBg}>
+              <View style={[styles.shFill, { width: `${(s.shield / 50) * 100}%` }]} />
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      {/* ==== topo direito: leitura + ameaça + sensibilidade ==== */}
+      <View style={styles.tr}>
+        <Text style={styles.readout}>
+          {Math.round((lookState.yaw * 180) / Math.PI)}° ·{' '}
+          {Math.round((lookState.pitch * 180) / Math.PI)}°
+        </Text>
+        <Text style={styles.enemyCount}>{s.enemies} DIRAC EM CAMPO</Text>
+        <Pressable style={styles.sensBtn} onPress={cycleSens}>
+          <Text style={styles.sensTxt}>SENS {SENS[sensIdx].toFixed(1)}×</Text>
+        </Pressable>
+      </View>
+
+      {/* ==== dicas contextuais ==== */}
+      {s.phase === 'buy' ? (
+        <View style={styles.bc}>
+          <Text style={styles.hint}>compre equipamento e confirme PRONTO</Text>
+          <Text style={styles.hintDim}>os abates na fase de ação rendem +200 dB</Text>
+        </View>
+      ) : null}
+      {s.phase === 'live' && !s.planted ? (
+        <View style={styles.bc}>
+          <Text style={styles.hint}>
+            {s.carrying
+              ? 'leve o Diapasão ao SITE A ou B e segure PLANTAR'
+              : 'proteja a carga até completar o PULSO'}
+          </Text>
+          <Text style={styles.hintDim}>
+            operadores DIRAC defendem os sites · mover cancela o plantio
+          </Text>
+        </View>
+      ) : null}
+      {s.phase === 'live' && s.planted ? (
+        <View style={styles.bc}>
+          <Text style={styles.hintTeal}>o Diapasão pulsa — mantenha a área limpa</Text>
+        </View>
+      ) : null}
+
+      {/* ==== banner de fim de rodada ==== */}
+      {s.phase === 'end' && s.outcome ? (
+        <View style={styles.banner}>
+          <Text style={[styles.bannerTitle, s.outcome === 'pulse' ? styles.teal : styles.magenta]}>
+            {s.outcome === 'pulse'
+              ? 'PULSO ESTABELECIDO'
+              : s.outcome === 'elim'
+                ? 'VOCÊ FOI ELIMINADO'
+                : 'TEMPO ESGOTADO'}
+          </Text>
+          <Text style={styles.bannerSub}>
+            ponto para {s.outcome === 'pulse' ? 'CORO' : 'DIRAC'} · próxima rodada em {s.secLeft}s
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ==== munição (acima do botão de tiro) ==== */}
+      {showCombat ? (
+        <View style={styles.ammoBox}>
+          <Text style={styles.ammoGun}>{s.weapon}</Text>
+          <Text style={[styles.ammoCount, s.ammo <= 5 ? styles.ammoLow : null]}>
+            {s.ammo} / {s.mag}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* barra de recarga sob a mira */}
+      {s.reloading ? (
+        <View style={styles.reloadWrap}>
+          <Text style={styles.reloadTxt}>RECARREGANDO</Text>
+          <View style={styles.reloadBarBg}>
+            <View style={[styles.reloadBarFill, { width: `${s.reloadProgress * 100}%` }]} />
+          </View>
+        </View>
+      ) : null}
+
+      {/* ==== controles (fases de combate) ==== */}
+      {showCombat ? (
+        <>
+          <Crosshair />
+          <Hitmarker />
+          <FireButton />
+          <ReloadButton />
+        </>
+      ) : null}
+      {showPlant ? <PlantButton /> : null}
+      <Joystick />
+
+      {/* ==== loja / fim de partida ==== */}
+      {s.phase === 'buy' ? <BuyMenu /> : null}
+      {s.phase === 'over' ? <MatchOver /> : null}
+
+      {/* dano recebido (sempre montado; invisível quando parado) */}
+      <DamageVignette />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  tl: { position: 'absolute', top: 14, left: 22 },
+  tc: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
+  tr: { position: 'absolute', top: 14, right: 22, alignItems: 'flex-end' },
+  bc: { position: 'absolute', bottom: 18, left: 0, right: 0, alignItems: 'center' },
+  title: {
+    fontFamily: MONO,
+    fontSize: 20,
+    fontWeight: 'bold',
+    letterSpacing: 8,
+    color: CSS.TEAL,
+  },
+  sub: { fontFamily: MONO, fontSize: 10, letterSpacing: 2, color: CSS.TEXT_DIM, marginTop: 2 },
+  db: { fontFamily: MONO, fontSize: 15, fontWeight: 'bold', color: '#F2FBFF', marginTop: 6 },
+  gun: { fontFamily: MONO, fontSize: 10, letterSpacing: 3, color: CSS.TEXT_DIM, marginTop: 2 },
+  chip: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(45,226,198,0.6)',
+    backgroundColor: 'rgba(45,226,198,0.10)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  chipTxt: { fontFamily: MONO, fontSize: 9, letterSpacing: 2, color: CSS.TEAL },
+  scoreRow: { flexDirection: 'row', alignItems: 'center' },
+  scoreSide: { alignItems: 'center', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 4 },
+  coroSide: { backgroundColor: 'rgba(45,226,198,0.12)', borderColor: 'rgba(45,226,198,0.4)', borderWidth: 1 },
+  diracSide: { backgroundColor: 'rgba(255,61,142,0.12)', borderColor: 'rgba(255,61,142,0.4)', borderWidth: 1 },
+  scoreName: { fontFamily: MONO, fontSize: 9, letterSpacing: 3, color: CSS.TEXT_DIM },
+  scoreNum: { fontFamily: MONO, fontSize: 22, fontWeight: 'bold', color: '#F2FBFF' },
+  scoreDash: { fontFamily: MONO, fontSize: 16, color: CSS.TEXT_DIM, marginHorizontal: 12 },
+  phaseLabel: { fontFamily: MONO, fontSize: 9, letterSpacing: 4, color: CSS.TEXT_DIM, marginTop: 5 },
+  timer: { fontFamily: MONO, fontSize: 24, fontWeight: 'bold', color: '#F2FBFF', marginTop: 1 },
+  timerPulse: { color: CSS.TEAL },
+  timerCrit: { color: CSS.MAGENTA },
+  vitals: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  hpBg: {
+    width: 170,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,61,142,0.18)',
+    overflow: 'hidden',
+  },
+  hpFill: { height: '100%', backgroundColor: CSS.MAGENTA },
+  shBg: {
+    width: 60,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 6,
+    backgroundColor: 'rgba(122,139,153,0.18)',
+    overflow: 'hidden',
+  },
+  shFill: { height: '100%', backgroundColor: '#9FD8E8' },
+  readout: { fontFamily: MONO, fontSize: 10, color: CSS.TEXT_DIM },
+  enemyCount: {
+    fontFamily: MONO,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: 'rgba(255,61,142,0.85)',
+    marginTop: 4,
+  },
+  sensBtn: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(45,226,198,0.5)',
+  },
+  sensTxt: { fontFamily: MONO, fontSize: 11, letterSpacing: 1, color: CSS.TEAL },
+  hint: { fontFamily: MONO, fontSize: 12, letterSpacing: 1, color: '#AFC2CE' },
+  hintDim: {
+    fontFamily: MONO,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: CSS.TEXT_DIM,
+    marginTop: 3,
+  },
+  hintTeal: { fontFamily: MONO, fontSize: 12, letterSpacing: 1, color: CSS.TEAL },
+  banner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '38%',
+    alignItems: 'center',
+  },
+  bannerTitle: { fontFamily: MONO, fontSize: 26, fontWeight: 'bold', letterSpacing: 6 },
+  teal: { color: CSS.TEAL },
+  magenta: { color: CSS.MAGENTA },
+  bannerSub: { fontFamily: MONO, fontSize: 11, letterSpacing: 2, color: '#AFC2CE', marginTop: 6 },
+  ammoBox: {
+    position: 'absolute',
+    right: 34,
+    bottom: 134,
+    alignItems: 'flex-end',
+  },
+  ammoGun: { fontFamily: MONO, fontSize: 10, letterSpacing: 3, color: CSS.TEXT_DIM },
+  ammoCount: {
+    fontFamily: MONO,
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#F2FBFF',
+    letterSpacing: 1,
+  },
+  ammoLow: { color: CSS.MAGENTA },
+  reloadWrap: {
+    position: 'absolute',
+    left: '50%',
+    top: '58%',
+    marginLeft: -90,
+    width: 180,
+    alignItems: 'center',
+  },
+  reloadTxt: {
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 3,
+    color: CSS.MAGENTA,
+    marginBottom: 5,
+  },
+  reloadBarBg: {
+    width: '100%',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,61,142,0.25)',
+    overflow: 'hidden',
+  },
+  reloadBarFill: { height: '100%', backgroundColor: CSS.MAGENTA },
+});

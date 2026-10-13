@@ -1,0 +1,26 @@
+// Assinatura release do PULSO — anexado ao final de android/app/build.gradle via "apply from".
+// O Gradle faz merge: o buildType release passa a usar signingConfigs.release.
+
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file("../signing/keystore.properties")
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { stream -> keystoreProps.load(stream) }
+} else {
+    throw new GradleException("signing/keystore.properties nao encontrado — rode o build a partir do repositorio PULSO.")
+}
+
+android {
+    signingConfigs {
+        release {
+            storeFile rootProject.file("../signing/pulso-release.keystore")
+            storePassword keystoreProps['storePassword']
+            keyAlias keystoreProps['keyAlias']
+            keyPassword keystoreProps['keyPassword']
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
