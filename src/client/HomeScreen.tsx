@@ -21,7 +21,7 @@ import {
 import { sessionState } from '../core/state';
 import { SFX } from '../game/Audio';
 
-const MAP_ORDER: MapId[] = ['SUBSOLO', 'PALCO'];
+const MAP_ORDER: MapId[] = ['SUBSOLO', 'PALCO', 'ESTUDIO'];
 
 export default function HomeScreen({
   onPlay,

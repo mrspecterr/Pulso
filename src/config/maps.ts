@@ -12,7 +12,7 @@
 // Waypoints ficam SEMPRE em áreas abertas — as rotas não cruzam paredes
 // (deslizes e "preso → próximo waypoint" cobrem os cantos).
 
-export type MapId = 'SUBSOLO' | 'PALCO';
+export type MapId = 'SUBSOLO' | 'PALCO' | 'ESTUDIO';
 
 // ------------------------------------------------------------------ CLIMA
 // Etapa 17 — variantes de mapa. O clima NÃO é só cosmético: corta a
@@ -268,6 +268,96 @@ export const MAPS: Record<MapId, MapDef> = {
         [1.5, 7],
         [2, -5],
         [2, -10],
+      ],
+    },
+  },
+
+  // ------------------------------------------------------------------
+  // ESTÚDIO — complexo de gravação desativado (36×28, Etapa 18).
+  // O mapa "fechado": salas em vez de lanes. A RECEPÇÃO ao sul abre para
+  // a MISTURA (console no centro); a oeste e a leste ficam os LOBBIES
+  // com as portas das SALAS DE GRAVAÇÃO (sites); e no centro-norte,
+  // entre os dois sites, fica o CONTROLE — uma CAIXA DE VIDRO: vê-se
+  // os dois sites através dos vidros, mas balas e DIRACs não passam.
+  ESTUDIO: {
+    id: 'ESTUDIO',
+    nome: 'ESTÚDIO',
+    tagline: 'complexo de gravação · 36×28',
+    bio: 'salas tratadas com espuma, console na mistura e o CONTROLE: uma caixa de vidro entre os sites que enxerga tudo',
+    corCss: '#F2C94C',
+    world: { W: 36, H: 28 },
+    sites: {
+      A: { x: -12.5, z: -10.5 }, // SALA A (oeste)
+      B: { x: 12.5, z: -10.5 }, // SALA B (leste)
+    },
+    spawn: [0, 11.5], // recepção, de frente para o console
+    targets: [
+      [-3.5, 12.5],
+      [4, 12],
+    ],
+    // 1: triângulo na SALA A · 2: triângulo na SALA B · 3: CONTROLE ⇄
+    // MISTURA pela porta central · 4: lobby oeste → recepção · 5: leste.
+    botRoutes: [
+      [
+        [-12.5, -11.8],
+        [-15.8, -8.2],
+        [-9.2, -8.2],
+      ],
+      [
+        [12.5, -11.8],
+        [15.8, -8.2],
+        [9.2, -8.2],
+      ],
+      [
+        [0, -10],
+        [0, -3],
+      ],
+      [
+        [-13, -3.2],
+        [-13, 4],
+        [-8, 10],
+      ],
+      [
+        [13, -3.2],
+        [13, 4],
+        [8, 10],
+      ],
+    ],
+    // âncora A/B: em frente à porta de cada sala (no lobby), linha reta
+    // até o site atravessando o vão da porta; mid: entre o console e a
+    // porta do CONTROLE.
+    retake: {
+      mid: [0, -4.8],
+      anchor: {
+        A: [-12, -3.5],
+        B: [12, -3.5],
+      },
+    },
+    holdSlots: {
+      A: [
+        [-16.2, -11],
+        [-8.8, -11],
+        [-12.5, -8],
+        [-16.8, -13.2],
+      ],
+      B: [
+        [16.2, -11],
+        [8.8, -11],
+        [12.5, -8],
+        [16.8, -13.2],
+      ],
+    },
+    // caminho provado: recepção → lateral → lobby → porta da sala → site.
+    carry: {
+      A: [
+        [-9, 7],
+        [-12.5, -2.5],
+        [-12, -7.5],
+      ],
+      B: [
+        [9, 7],
+        [12.5, -2.5],
+        [12, -7.5],
       ],
     },
   },

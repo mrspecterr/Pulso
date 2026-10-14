@@ -289,6 +289,26 @@ export function curtainTexture(seed = 31): THREE.DataTexture {
   });
 }
 
+/** Espuma acústica (ESTÚDIO): grade de cunhas diagonais carvão sobre base escura. */
+export function foamTexture(seed = 41): THREE.DataTexture {
+  const S = 128;
+  const P = 32; // período da cunha (divide S → emenda)
+  const base = hexToRgb(0x1f2226);
+  const wedge = hexToRgb(0x33383f);
+  return makeTex(S, (x, y, px) => {
+    const u = x / S;
+    const v = y / S;
+    // dente de serra diagonal 0..1 — cunhas de 45°
+    const tri = Math.abs((((x + y) % (2 * P)) + (2 * P)) % (2 * P) - P) / P;
+    const wear = 0.8 + fbmP(u, v, seed, 24, 2) * 0.24;
+    const k = tri < 0.5 ? 0.85 * wear : 1.08 * wear;
+    const src = tri < 0.5 ? base : wedge;
+    px[0] = src[0] * k;
+    px[1] = src[1] * k;
+    px[2] = src[2] * k;
+  });
+}
+
 /** Faixa de segurança diagonal (amarelo queimado / quase-preto), gasta. */
 export function hazardTexture(): THREE.DataTexture {
   const S = 128;

@@ -63,10 +63,11 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
 - **Esquadrão 5v5 (v0.12)** — quatro aliados CORO (TENOR, ALTO, BAIXO, CONTRA) lutam ao seu lado: seguem sua formação, engajam DIRACs à vista, defendem o site plantado e caçam sozinhos se você cair. Kill feed no canto, barra do esquadrão no HUD, modo espectador quando você é abatido e vitória por varrida (`DIRAC VARRIDO DO MAPA`). Os DIRACs também cresceram para cinco — e agora revidam quando baleados durante o retake.
 - **Polimento e equilíbrio (v0.13)** — **minimapa tático** com a planta real do SUBSOLO (paredes dos colisores, seta de orientação, esquadrão, sites e Diapasão plantado; DIRACs acendem ao atirar, levar dano ou serem revelados pelo SONAR — sem wallhack); **dificuldade escalonada**: cada ponto DIRAC no placar deixa o esquadrão inimigo um nível mais afiado (precisão, reação, dano, percepção e retake — indicador `AMEAÇA` no HUD); **resgate da carga**: se você cair com o Diapasão, o aliado mais próximo pega a carga e planta por você (`◈ TENOR LEVA A CARGA`) — e se ele cair, outro assume; **placar de combate** no fim de cada rodada (abates por operador, CORO × DIRAC).
-- **Dois mapas + seleção (v0.14)** — escolha o campo antes da partida na mesma tela do operador:
+- **Três mapas + seleção (v0.14/18)** — escolha o campo antes da partida no hub:
   - **SUBSOLO** — estação de metrô desativada, 40×32m, três lanes simétricas e corredores curtos
   - **PALCO** — casa de espetáculos desativada, 44×34m, assimétrica: foyer com três portas, plateia coberta de poltronas, camarins a oeste, galeria a leste e o site B em cima do palco atrás de uma mureta baixa de 1,1m (dá para atirar por cima, não para passar)
-  - toda a IA (rotas de patrulha, retakes, defesa e resgate da carga) e o minimapa leem a planta do mapa — `config/maps.ts` é a fonte da verdade; as cenas cuidam só da arte
+  - **ESTÚDIO (v0.18)** — complexo de gravação desativado, 36×28m, o mapa fechado por salas: RECEPÇÃO com balcão e sofás ao sul, MISTURA com o console de mistura no centro, LOBBIES com pilhas de amplificadores e as portas das SALAS A/B ao norte — e entre os dois sites o **CONTROLE, uma caixa de vidro**: de dentro você enxerga os dois sites através dos vidros temperados por ressonância, mas balas não cruzam e os DIRACs não enxergam de volta. Quem toma o mid, toma o olho da partida
+  - toda a IA (rotas de patrulha, retakes, defesa e resgate da carga) e o minimapa leem a planta do mapa — `config/maps.ts` é a fonte da verdade; as cenas cuidam só da arte (e do clima)
 - **Mapa SUBSOLO** — 40×32m com corredores, sites A/B, caixotes e colisão real.
 - **Direção de arte (v0.9)** — texturas procedurais (concreto, lajes, painéis, hazard), iluminação com sombras dinâmicas, arma em primeira pessoa animada, faíscas de impacto, luminárias/vigas/canos e placas de site.
 - **Áudio e feedback (v0.11)** — todo o áudio é procedural (sintetizado por `scripts/gen_sfx.py`, zero assets externos): tiros com variação de timbre, estrondos do DIRAC com atenuação por distância, recarga com dois estágios, o Diapasão canta ao ser plantado e acelera o bip conforme o fusível derrete, detonação com sub-grave, motivos de vitória/derrota e o zumbido contínuo do subsolo. Haptics em acerto/abate/dano/plantio e botão `SOM` (100% · 50% · mudo).
@@ -90,7 +91,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **15** — Cliente de jogo: splash de entrada, HUB com artes dos operadores e perfil/carreira persistentes, galeria de agentes, ajustes com vibração e briefing no hub
 - [x] **16** — Arsenal & Campo de Provas: escopeta GLISSANDO (8 balins, corredera animada), operador VIBRATO com CADÊNCIA/RITARDANDO e modo treino com dB infinito
 - [x] **17** — Frente climática & progressão: clima por partida (NOITE/NEBLINA com impacto no combate), 3º Traço por kit (SURDINA/MARCA/POSTURA/ACORDE), missões diárias e 10 conquistas
-- [ ] **18+** — modo espectador de replay, mais mapas, ranking sazonal
+- [x] **18** — Terceiro mapa ESTÚDIO: complexo de gravação fechado por salas, console na MISTURA e o CONTROLE — caixa de vidro entre os sites que deixa VER mas corta bala e visão dos DIRACs
+- [ ] **19+** — modo espectador de replay, ranking sazonal, mais mapas
 
 ## 🔧 Como o APK é feito (automático)
 

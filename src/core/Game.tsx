@@ -12,6 +12,7 @@ import { Renderer } from 'expo-three';
 import { buildSubsolo } from '../scenes/SubsoloScene';
 import type { SceneBundle } from '../scenes/SubsoloScene';
 import { buildPalco } from '../scenes/PalcoScene';
+import { buildEstudio } from '../scenes/EstudioScene';
 import { TargetRange } from '../game/Targets';
 import { BotSquad } from '../game/Bots';
 import type { Combatant } from '../game/Bots';
@@ -69,6 +70,7 @@ const SCENE_BUILDERS: Record<
 > = {
   SUBSOLO: buildSubsolo,
   PALCO: buildPalco,
+  ESTUDIO: buildEstudio,
 };
 
 interface Tracer {
