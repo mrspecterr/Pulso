@@ -141,7 +141,7 @@ export class RoundManager {
           }
           if (roundState.plantProgress >= 1) {
             roundState.plantProgress = 1;
-            this.plant(now, roundState.inSite as 'A' | 'B');
+            this.plant(now, roundState.inSite as 'A' | 'B', true);
           }
         } else if (roundState.plantProgress > 0) {
           roundState.plantProgress = Math.max(0, roundState.plantProgress - dtMs / 900);
@@ -177,13 +177,15 @@ export class RoundManager {
     }
   }
 
-  private plant(now: number, site: 'A' | 'B') {
+  private plant(now: number, site: 'A' | 'B', byPlayer: boolean) {
     roundState.planted = true;
     roundState.plantSite = site;
     roundState.carrying = false;
     roundState.carrierAlly = null; // plantado: ninguém carrega mais (Etapa 13)
     roundState.chargeEndsAt = now + ROUND.CHARGE_MS;
-    hudEvents.emit({ type: 'planted', site });
+    // Etapa 17: o evento agora diz QUEM fechou o canal — plantio próprio
+    // conta para carreira/missões, plantio de aliado é nota de esquadrão
+    hudEvents.emit({ type: 'planted', site, by: byPlayer ? 'player' : 'ally' });
     this.hooks.onPlanted(site);
   }
 
@@ -193,7 +195,7 @@ export class RoundManager {
    */
   allyPlant(site: 'A' | 'B') {
     if (roundState.phase !== 'live' || roundState.planted) return;
-    this.plant(performance.now(), site);
+    this.plant(performance.now(), site, false);
   }
 
   /**

@@ -47,6 +47,7 @@ import {
   hudEvents,
   inputState,
   lookState,
+  matchStats,
   minimapState,
   playerVitals,
   roundState,
@@ -55,12 +56,17 @@ import {
   settings,
   tracoState,
 } from './state';
+import { combatModifiers } from './state';
 
 const DEG2RAD = Math.PI / 180;
 
 // construtores de cena por mapa (Etapa 14) — a geometria de JOGO
-// (rotas/âncoras/spawn/sites) vem do MAPS, a arte vem daqui
-const SCENE_BUILDERS: Record<MapId, (scene: THREE.Scene) => SceneBundle> = {
+// (rotas/âncoras/spawn/sites) vem do MAPS, a arte vem daqui; Etapa 17:
+// o CLIMA da sessão reescreve a luz de cada casa
+const SCENE_BUILDERS: Record<
+  MapId,
+  (scene: THREE.Scene, weather: import('../config/maps').WeatherId) => SceneBundle
+> = {
   SUBSOLO: buildSubsolo,
   PALCO: buildPalco,
 };
@@ -157,6 +163,8 @@ function runGame(
   const A = AGENTS[sessionState.agent];
   // mapa da sessão (Etapa 14): sites, spawn, rotas e caminhos
   const M = MAPS[sessionState.map];
+  // clima da sessão (Etapa 17): arte das cenas + números de combate
+  const weather = sessionState.weather;
   // campo de provas (Etapa 16): treino livre — dB infinito, sem rodadas
   const training = sessionState.mode === 'treino';
 
@@ -168,12 +176,15 @@ function runGame(
   gameStats.headshots = 0;
   gameStats.shots = 0;
   gameStats.hits = 0;
+  matchStats.plants = 0; // Etapa 17: plantios/quedas são DA PARTIDA
+  matchStats.deaths = 0;
 
   // --- cena ---
   const scene = new THREE.Scene();
-  const bundle = SCENE_BUILDERS[sessionState.map](scene);
+  const bundle = SCENE_BUILDERS[sessionState.map](scene, weather);
   const range = new TargetRange(scene, M.targets);
   const squad = new BotSquad(scene, bundle.solids, M);
+  squad.setWeather(weather); // Etapa 17: percepção/audição/reação do clima
   const allies = new AllySquad(scene, bundle.solids, M); // Etapa 12: esquadrão CORO
   // minimapa (Etapa 13/14): footprint das paredes + geometria do mapa
   minimapState.walls = bundle.walls;
@@ -193,11 +204,22 @@ function runGame(
       pos?: THREE.Vector3;
       bots?: { alive: number; list: Array<{ id: number; phase: string; x: number; z: number; hp: number }> };
       renderer?: THREE.WebGLRenderer;
+      dev?: {
+        /** encerra a partida na hora (fim de partida controlado p/ testes) */
+        matchOver: (winner: 'CORO' | 'DIRAC') => void;
+      };
     };
   };
   if (g.__PULSO__) {
     g.__PULSO__.pos = camera.position;
     g.__PULSO__.bots = squad.info;
+    g.__PULSO__.dev = {
+      matchOver: (winner) => {
+        roundState.matchWinner = winner;
+        roundState.phase = 'over';
+        hudEvents.emit({ type: 'matchOver', winner });
+      },
+    };
   }
 
   // a câmera precisa estar na cena para os filhos dela (a arma) renderizarem
@@ -215,9 +237,11 @@ function runGame(
   const renderer = new Renderer({ gl });
   renderer.setSize(w, h);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  // direção de arte (Etapa 9): filmic
+  // direção de arte (Etapa 9): filmic. Etapa 17: o clima afina a exposição —
+  // a noite não estoura no neon, a neblina não vira leite.
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.55;
+  renderer.toneMappingExposure =
+    weather === 'NOITE' ? 1.42 : weather === 'NEBLINA' ? 1.5 : 1.55;
   // Etapa 10: PCF puro (o "Soft" custa o dobro no mobile) + atualização a 20 Hz
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
@@ -403,6 +427,9 @@ function runGame(
   let dashX = 0;
   let dashZ = 0;
 
+  // GRAVE: POSTURA (Etapa 17) — cotovelo fincado: mira morta, passo curto
+  let steadyUntil = 0;
+
   const useTraco = (kind: TracoKey, nowMs: number) => {
     const playerAlive = playerVitals.hp > 0;
     const combatOk = roundState.phase === 'live' || roundState.phase === 'end';
@@ -493,6 +520,45 @@ function runGame(
         spawnPulse(0x8fb7ff);
         break;
       }
+      case 'surdina': {
+        // MUDO (Etapa 17): campo de surdez — atravessa parede (ressonância)
+        squad.deafenNear(
+          camera.position,
+          nowMs,
+          TRACOS.SURDINA_RANGE,
+          TRACOS.SURDINA_MS
+        );
+        spawnPulse(0x51606e); // pulso surdo-mudo, quase sem cor
+        break;
+      }
+      case 'marca': {
+        // ECO (Etapa 17): dardo rastreador no alvo mais alinhado com a mira
+        const marked = squad.markNearest(
+          camera,
+          TRACOS.MARCA_FOV_DOT,
+          TRACOS.MARCA_RANGE,
+          nowMs + TRACOS.MARCA_MS
+        );
+        if (marked < 0) {
+          // errou o cone: não gasta o uso (o dardo nem saiu do tubo)
+          tracoState.uses[kind]++;
+          break;
+        }
+        spawnPulse(COLORS.TEAL);
+        break;
+      }
+      case 'postura': {
+        // GRAVE (Etapa 17): finca o cotovelo — mira morta pelo prazo
+        steadyUntil = nowMs + TRACOS.POSTURA_MS;
+        spawnPulse(0xffb454);
+        break;
+      }
+      case 'acorde': {
+        // VIBRATO (Etapa 17): escudo harmônico do esquadrão inteiro
+        combatModifiers.guardUntil = nowMs + TRACOS.ACORDE_MS;
+        spawnPulse(0xb48cff);
+        break;
+      }
     }
 
     tracoState.uses[kind]--;
@@ -530,6 +596,8 @@ function runGame(
     playerVitals.shieldBonusUntil = 0;
     playerVitals.regenUntil = 0; // CADÊNCIA não atravessa rodadas
     playerVitals.regenPerSec = 0;
+    steadyUntil = 0; // POSTURA recomeça do zero (Etapa 17)
+    combatModifiers.guardUntil = 0; // ACORDE idem
     removeBarrier();
     bundle.clearPlant();
     range.reset();
@@ -553,10 +621,14 @@ function runGame(
   let respawnAt = 0;
 
   // dano do bot acertando o jogador: COURAÇA (temporal) e traje absorvem,
-  // HUD pisca, morte encerra — a menos que o esquadrão ainda lute (Etapa 12)
+  // ACORDE (Etapa 17) reduz a conta antes de tudo, HUD pisca, morte
+  // encerra — a menos que o esquadrão ainda lute (Etapa 12)
   const hitPlayer = (dmg: number, killer: string) => {
     if (playerVitals.hp <= 0) return;
     let left = dmg;
+    if (performance.now() < combatModifiers.guardUntil) {
+      left *= combatModifiers.guardMul; // escudo harmônico do VIBRATO
+    }
     if (playerVitals.shieldBonus > 0) {
       const absorbed = Math.min(playerVitals.shieldBonus, left);
       playerVitals.shieldBonus -= absorbed;
@@ -570,6 +642,7 @@ function runGame(
     playerVitals.hp = Math.max(0, playerVitals.hp - left);
     hudEvents.emit({ type: 'playerHit', dmg, hp: playerVitals.hp });
     if (playerVitals.hp <= 0) {
+      matchStats.deaths++; // Etapa 17: a carreira quer saber das quedas
       hudEvents.emit({ type: 'feed', killer, victim: 'VOCÊ' });
       if (training) {
         // Etapa 16: no campo de provas não há rodada — quem decide a volta
@@ -661,6 +734,11 @@ function runGame(
     ) {
       scoreboard.kills[e.killer] = (scoreboard.kills[e.killer] ?? 0) + 1;
     }
+    // Etapa 17: plantio DESTE jogador conta para a carreira/missões — o
+    // evento agora diz quem fechou o canal (jogador ou aliado)
+    if (e.type === 'planted' && e.by === 'player') {
+      matchStats.plants++;
+    }
   });
 
   const fire = (nowMs: number) => {
@@ -684,8 +762,11 @@ function runGame(
     if (nowMs - lastShot > W.BURST_RESET_MS) burstIdx = 0;
     lastShot = nowMs;
 
-    // direção com desvio do padrão de spray (graus → rad)
-    const [sxDeg, syDeg] = sprayAt(burstIdx, roundState.weapon);
+    // POSTURA (GRAVE, Etapa 17): cotovelo fincado — a tendência do spray
+    // morre enquanto durar a postura (os balins da GLISSANDO continuam no
+    // cone de dispersão — a escopeta não vira um laser)
+    const steady = nowMs < steadyUntil;
+    const [sxDeg, syDeg] = steady ? [0, 0] : sprayAt(burstIdx, roundState.weapon);
     burstIdx++;
     camera.getWorldDirection(fwd);
     right.set(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -803,7 +884,8 @@ function runGame(
       muzzleLight.intensity = 24; // escopeta acende o corredor
       muzzleUntil = nowMs + MUZZLE_MS;
       weapon.onFire(); // recuo pesado + clarão grande + corredera
-      viewPunch = Math.min(viewPunch + 1.25, 1.6); // chute forte da câmera
+      // POSTURA segura o corpo: o chute da câmera amortece
+      viewPunch = Math.min(viewPunch + (steady ? 0.5 : 1.25), 1.6);
 
       ammo--;
       gameStats.ammo = ammo;
@@ -876,7 +958,7 @@ function runGame(
     muzzleLight.intensity = 18;
     muzzleUntil = nowMs + MUZZLE_MS;
     weapon.onFire(); // recuo + clarão + cápsula do viewmodel
-    viewPunch = Math.min(viewPunch + 0.7, 1.5); // chute da câmera
+    viewPunch = Math.min(viewPunch + (steady ? 0.3 : 0.7), 1.5); // chute da câmera
 
     ammo--;
     gameStats.ammo = ammo;
@@ -961,7 +1043,12 @@ function runGame(
       } else if (playerAlive && (mx !== 0 || mz !== 0)) {
         const sin = Math.sin(lookState.yaw);
         const cos = Math.cos(lookState.yaw);
-        const step = MOVE_SPEED * A.speedMul * dt;
+        // POSTURA (Etapa 17): cotovelo fincado pesa o passo — o preço da mira
+        const step =
+          MOVE_SPEED *
+          A.speedMul *
+          (now < steadyUntil ? TRACOS.POSTURA_MOVE_MUL : 1) *
+          dt;
         const dx = (-sin * mz + cos * mx) * step;
         const dz = (-cos * mz - sin * mx) * step;
         if (!blocked(camera.position.x + dx, camera.position.z)) {

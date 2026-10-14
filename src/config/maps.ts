@@ -14,6 +14,62 @@
 
 export type MapId = 'SUBSOLO' | 'PALCO';
 
+// ------------------------------------------------------------------ CLIMA
+// Etapa 17 — variantes de mapa. O clima NÃO é só cosmético: corta a
+// percepção dos DIRACs (noite/neblina) e dilata a reação deles. A direção
+// de arte por variante vive nas CENAS (fog/luzes por clima); os números de
+// combate vivem aqui (o BotSquad consome via setWeather).
+export type WeatherId = 'PADRAO' | 'NOITE' | 'NEBLINA';
+
+export interface WeatherDef {
+  id: WeatherId;
+  nome: string;
+  glyph: string;
+  tagline: string;
+  corCss: string;
+  /** multiplicador do alcance de percepção dos DIRACs */
+  perceiveMul: number;
+  /** multiplicador do alcance de audição dos DIRACs */
+  hearMul: number;
+  /** reação extra (ms) somada à janela deles */
+  reactAddMs: number;
+}
+
+export const WEATHERS: Record<WeatherId, WeatherDef> = {
+  PADRAO: {
+    id: 'PADRAO',
+    nome: 'PADRÃO',
+    glyph: '◦',
+    tagline: 'operação limpa · visão cheia',
+    corCss: '#CFE2EA',
+    perceiveMul: 1,
+    hearMul: 1,
+    reactAddMs: 0,
+  },
+  NOITE: {
+    id: 'NOITE',
+    nome: 'NOITE',
+    glyph: '☾',
+    tagline: 'blecaute da estação · DIRACs enxergam menos',
+    corCss: '#9FD8E8',
+    perceiveMul: 0.8,
+    hearMul: 0.9,
+    reactAddMs: 90,
+  },
+  NEBLINA: {
+    id: 'NEBLINA',
+    nome: 'NEBLINA',
+    glyph: '≋',
+    tagline: 'vapor nos túneis · curto alcance para todos',
+    corCss: '#8FB7C9',
+    perceiveMul: 0.62,
+    hearMul: 0.72,
+    reactAddMs: 160,
+  },
+};
+
+export const WEATHER_ORDER: WeatherId[] = ['PADRAO', 'NOITE', 'NEBLINA'];
+
 export interface MapSite {
   x: number;
   z: number;

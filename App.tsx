@@ -9,8 +9,9 @@ import SplashScreen from './src/client/SplashScreen';
 import HomeScreen from './src/client/HomeScreen';
 import AgentsScreen from './src/client/AgentsScreen';
 import SettingsScreen from './src/client/SettingsScreen';
+import MissionsScreen from './src/client/MissionsScreen';
 import { CSS } from './src/config/constants';
-import { gameStats, hudEvents, sessionState, uiState } from './src/core/state';
+import { gameStats, hudEvents, matchStats, uiState, sessionState } from './src/core/state';
 import type { SessionMode } from './src/core/state';
 import { loadProfile, recordMatch } from './src/client/profile';
 import { SFX } from './src/game/Audio';
@@ -61,13 +62,14 @@ class ErrorBoundary extends React.Component<
  * tudo persistido no perfil do jogador (AsyncStorage). A partida nasce
  * do hub com o operador e o mapa escolhidos.
  */
-type Screen = 'splash' | 'home' | 'agents' | 'settings' | 'match';
+type Screen = 'splash' | 'home' | 'agents' | 'settings' | 'missions' | 'match';
 
 export default function App() {
   const [screen, setScreen] = React.useState<Screen>('splash');
   const [session, setSession] = React.useState<{
     agent: string;
     map: string;
+    weather: string;
     mode: SessionMode;
   } | null>(null);
 
@@ -84,8 +86,9 @@ export default function App() {
     };
   }, []);
 
-  // eventos do jogo: fim de partida grava a carreira e volta ao HUB
-  // (antes ia direto à seleção de agente — Etapa 8; o hub é a casa agora)
+  // eventos do jogo: fim de partida grava a carreira (com plantios e
+  // quedas da partida — Etapa 17) e volta ao HUB (antes ia direto à
+  // seleção de agente — Etapa 8; o hub é a casa agora)
   React.useEffect(() => {
     const off = hudEvents.subscribe((e) => {
       if (e.type === 'matchOver') {
@@ -94,6 +97,8 @@ export default function App() {
           headshots: gameStats.headshots,
           shots: gameStats.shots,
           hits: gameStats.hits,
+          plants: matchStats.plants,
+          deaths: matchStats.deaths,
         });
       }
       if (e.type === 'backToSelect') {
@@ -107,10 +112,16 @@ export default function App() {
 
   const startMatch = (mode: SessionMode) => {
     // o motor lê sessionState (hidratado do perfil e mantido vivo pelas
-    // telas do hub); a key força remontar em cima da escolha atual
+    // telas do hub); a key força remontar em cima da escolha atual —
+    // mapa, clima e agente inclusos (Etapa 17)
     sessionState.mode = mode;
     uiState.trainMenuOpen = false;
-    setSession({ agent: sessionState.agent, map: sessionState.map, mode });
+    setSession({
+      agent: sessionState.agent,
+      map: sessionState.map,
+      weather: sessionState.weather,
+      mode,
+    });
     setScreen('match');
   };
 
@@ -127,6 +138,7 @@ export default function App() {
             onTraining={() => startMatch('treino')}
             onAgents={() => setScreen('agents')}
             onSettings={() => setScreen('settings')}
+            onMissions={() => setScreen('missions')}
           />
         )}
 
@@ -134,9 +146,11 @@ export default function App() {
 
         {screen === 'settings' && <SettingsScreen onBack={() => setScreen('home')} />}
 
+        {screen === 'missions' && <MissionsScreen onBack={() => setScreen('home')} />}
+
         {screen === 'match' && session && (
           <>
-            <Game key={`${session.agent}-${session.map}-${session.mode}`} />
+            <Game key={`${session.agent}-${session.map}-${session.weather}-${session.mode}`} />
             <Hud />
           </>
         )}

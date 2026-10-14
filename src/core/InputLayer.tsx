@@ -122,7 +122,7 @@ export default React.memo(function InputLayer({ active }: Props) {
     !roundState.planted &&
     playerVitals.hp > 0;
 
-  const fireTraco = (slot: 0 | 1) => {
+  const fireTraco = (slot: 0 | 1 | 2) => {
     const kit = AGENTS[sessionState.agent].tracos[slot];
     const now = performance.now();
     if (tracoState.uses[kit.key] > 0 && now >= tracoState.readyAt[kit.key]) {
@@ -193,6 +193,10 @@ export default React.memo(function InputLayer({ active }: Props) {
       }
       if (inRect(x, y, tracoZone(BTN.TRACO2))) {
         fireTraco(1);
+        return { kind: 'none' };
+      }
+      if (inRect(x, y, tracoZone(BTN.TRACO3))) {
+        fireTraco(2);
         return { kind: 'none' };
       }
     }

@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { ALLIES, COLORS, ROUND } from '../config/constants';
 import type { MapDef } from '../config/maps';
 import { StaticBuckets } from '../core/merge';
-import { hudEvents, roundState } from '../core/state';
+import { combatModifiers, hudEvents, roundState } from '../core/state';
 import type { Combatant } from './Bots';
 
 export const ALLY_NAMES = ['TENOR', 'ALTO', 'BAIXO', 'CONTRA'] as const;
@@ -342,6 +342,10 @@ export class AllySquad {
   /** Dano de DIRAC num aliado. killer vira o feed se for o abate. */
   damage(a: Ally, amount: number, killer: string): { killed: boolean } {
     if (a.phase === 'dying' || a.phase === 'dead') return { killed: false };
+    // ACORDE (VIBRATO, Etapa 17): escudo harmônico do esquadrão
+    if (performance.now() < combatModifiers.guardUntil) {
+      amount *= combatModifiers.guardMul;
+    }
     a.hp -= amount;
     a.flash = 1;
     if (a.hp <= 0) {

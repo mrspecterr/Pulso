@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { COLORS } from '../config/constants';
 import { MAPS } from '../config/maps';
+import type { WeatherId } from '../config/maps';
 import { PlantViz } from '../game/PlantViz';
 import { StaticBuckets } from '../core/merge';
 import {
@@ -19,6 +20,53 @@ export interface AABB {
   minZ: number;
   maxZ: number;
 }
+
+// -------------------------------------------------------------- CLIMA (Etapa 17)
+// A direção de arte de cada variante: cor de fundo/névoa, densidade, luzes.
+// PADRÃO é a estação de sempre; NOITE é o blecaute (as luzes de serviço e
+// o neon dos sites carregam a leitura); NEBLINA é vapor engolindo os
+// túneis (curto alcance, cores lavadas, feixes dissolvidos).
+const WX = {
+  PADRAO: {
+    bg: 0x0a0d12,
+    fog: 0.018,
+    hemiSky: 0x9db1c7,
+    hemiGround: 0x3a352e,
+    hemiInt: 1.35,
+    dirColor: 0xffe7c4,
+    dirInt: 3.2,
+    beamOp: 0.34,
+    siteA: 12,
+    siteB: 8.5,
+    mid: 9,
+  },
+  NOITE: {
+    bg: 0x04060a,
+    fog: 0.024,
+    hemiSky: 0x33415a,
+    hemiGround: 0x14161c,
+    hemiInt: 0.42,
+    dirColor: 0x8fb0ff, // luar frio atravessando o teto
+    dirInt: 0.4,
+    beamOp: 0.44,
+    siteA: 17,
+    siteB: 12.5,
+    mid: 7,
+  },
+  NEBLINA: {
+    bg: 0x1d2530,
+    fog: 0.052,
+    hemiSky: 0x8fa0b4,
+    hemiGround: 0x2c3038,
+    hemiInt: 0.95,
+    dirColor: 0xd8e4f0,
+    dirInt: 1.5,
+    beamOp: 0.18, // o vapor dilui os feixes
+    siteA: 10,
+    siteB: 7.5,
+    mid: 7,
+  },
+} as const;
 
 export interface SceneBundle {
   update: (dt: number, t: number) => void;
@@ -56,8 +104,9 @@ export interface SceneBundle {
  * — o cenário inteiro desenha em ~25 chamadas em vez de ~170. As COLISÕES
  * e os SÓLIDOS continuam exatamente os mesmos das etapas anteriores.
  */
-export function buildSubsolo(scene: THREE.Scene): SceneBundle {
+export function buildSubsolo(scene: THREE.Scene, weather: WeatherId = 'PADRAO'): SceneBundle {
   const SITES = MAPS.SUBSOLO.sites;
+  const wx = WX[weather];
   const colliders: AABB[] = [];
   const solids: THREE.Object3D[] = [];
 
@@ -65,8 +114,8 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   const solidStatics = new StaticBuckets(scene);
   const decorStatics = new StaticBuckets(scene);
 
-  scene.background = new THREE.Color(0x0a0d12);
-  scene.fog = new THREE.FogExp2(0x0a0d12, 0.018);
+  scene.background = new THREE.Color(wx.bg);
+  scene.fog = new THREE.FogExp2(wx.bg, wx.fog);
 
   // --- texturas procedurais (geradas uma vez) ---
   const texConc = concreteTexture(0x5a6169, 7);
@@ -142,7 +191,7 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   const beamMat = new THREE.MeshBasicMaterial({
     map: beamTexture(),
     transparent: true,
-    opacity: 0.34,
+    opacity: wx.beamOp,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -515,12 +564,14 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   const viz = new PlantViz(scene);
 
   // ================= ILUMINAÇÃO =================
-  // luz-chave quente atravessando o teto (propositadamente) — desenha as
-  // sombras no chão e modela os volumes; hemisfério gelado como preenchimento
-  const hemi = new THREE.HemisphereLight(0x9db1c7, 0x3a352e, 1.35);
+  // luz-chave atravessando o teto (propositadamente) — desenha as
+  // sombras no chão e modela os volumes; hemisfério gelado como preenchimento.
+  // Etapa 17: o clima reescreve a luz — noite vira luar + neon, neblina
+  // dissolve tudo em cinza.
+  const hemi = new THREE.HemisphereLight(wx.hemiSky, wx.hemiGround, wx.hemiInt);
   scene.add(hemi);
 
-  const dir = new THREE.DirectionalLight(0xffe7c4, 3.2);
+  const dir = new THREE.DirectionalLight(wx.dirColor, wx.dirInt);
   dir.position.set(9, 17, 7);
   dir.castShadow = true;
   dir.shadow.mapSize.set(1024, 1024);
@@ -543,20 +594,20 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     }
   };
 
-  const siteALight = new THREE.PointLight(COLORS.TEAL, 12, 17, 1.6);
+  const siteALight = new THREE.PointLight(COLORS.TEAL, wx.siteA, 17, 1.6);
   siteALight.position.set(-13, 2.6, -12.5);
   scene.add(siteALight);
-  const siteBLight = new THREE.PointLight(COLORS.MAGENTA, 8.5, 15, 1.6);
+  const siteBLight = new THREE.PointLight(COLORS.MAGENTA, wx.siteB, 15, 1.6);
   siteBLight.position.set(13, 2.6, -12.5);
   scene.add(siteBLight);
-  const midLight = new THREE.PointLight(0xfff4e0, 9, 15, 1.6);
+  const midLight = new THREE.PointLight(0xfff4e0, wx.mid, 15, 1.6);
   midLight.position.set(0, 3.1, -8);
   scene.add(midLight);
 
   const update = (dt: number, t: number) => {
     viz.update(dt, t);
-    siteALight.intensity = 12 + Math.sin(t * 3.4) * 4; // o pulso
-    siteBLight.intensity = 8.5 + Math.sin(t * 3.4 + Math.PI) * 2.5;
+    siteALight.intensity = wx.siteA + Math.sin(t * 3.4) * 4; // o pulso
+    siteBLight.intensity = wx.siteB + Math.sin(t * 3.4 + Math.PI) * 2.5;
     pylonA.opacity = 0.75 + Math.abs(Math.sin(t * 2.2)) * 0.25;
     pylonB.opacity = 0.75 + Math.abs(Math.sin(t * 2.2 + 0.8)) * 0.25;
   };

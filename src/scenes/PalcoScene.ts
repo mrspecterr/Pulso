@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { COLORS } from '../config/constants';
 import { MAPS } from '../config/maps';
+import type { WeatherId } from '../config/maps';
 import { PlantViz } from '../game/PlantViz';
 import { StaticBuckets } from '../core/merge';
 import {
@@ -42,16 +43,67 @@ import type { AABB, SceneBundle } from './SubsoloScene';
  * holofotes quentes — o oposto do concreto frio do SUBSOLO. Teto alto
  * (4,6m) com vigas e lustres; o mesmo pipeline de merge da Etapa 10.
  */
-export function buildPalco(scene: THREE.Scene): SceneBundle {
+
+// -------------------------------------------------------------- CLIMA (Etapa 17)
+// O teatro de cada clima: PADRÃO é o anoitecer de sempre; NOITE é o
+// espetáculo ligado — casa apagada, holofotes do palco carregando a cena;
+// NEBLINA é a casa enfumaçada (fumaça de palco que vaza tudo em cinza).
+const WX = {
+  PADRAO: {
+    bg: 0x0f0c0a,
+    fog: 0.016,
+    hemiSky: 0xc9b8a8,
+    hemiGround: 0x2e2118,
+    hemiInt: 1.3,
+    dirColor: 0xffe2b0,
+    dirInt: 3.0,
+    beamOp: 0.3,
+    siteA: 11,
+    stage: 13,
+    plateia: 8,
+    foyer: 7,
+  },
+  NOITE: {
+    bg: 0x050408,
+    fog: 0.022,
+    hemiSky: 0x3a3450,
+    hemiGround: 0x161018,
+    hemiInt: 0.4,
+    dirColor: 0x9db0ff,
+    dirInt: 0.35,
+    beamOp: 0.4,
+    siteA: 15,
+    stage: 18, // o espetáculo está LIGADO — o palco reina na escuridão
+    plateia: 4.5,
+    foyer: 4.5,
+  },
+  NEBLINA: {
+    bg: 0x25221e,
+    fog: 0.05,
+    hemiSky: 0x9aa4b2,
+    hemiGround: 0x2a2c30,
+    hemiInt: 0.9,
+    dirColor: 0xe0e8f2,
+    dirInt: 1.4,
+    beamOp: 0.16, // fumaça de palco dilui os feixes
+    siteA: 9,
+    stage: 11,
+    plateia: 7,
+    foyer: 6,
+  },
+} as const;
+
+export function buildPalco(scene: THREE.Scene, weather: WeatherId = 'PADRAO'): SceneBundle {
   const SITES = MAPS.PALCO.sites;
+  const wx = WX[weather];
   const colliders: AABB[] = [];
   const solids: THREE.Object3D[] = [];
 
   const solidStatics = new StaticBuckets(scene);
   const decorStatics = new StaticBuckets(scene);
 
-  scene.background = new THREE.Color(0x0f0c0a);
-  scene.fog = new THREE.FogExp2(0x0f0c0a, 0.016);
+  scene.background = new THREE.Color(wx.bg);
+  scene.fog = new THREE.FogExp2(wx.bg, wx.fog);
 
   // --- texturas procedurais (geradas uma vez) ---
   const texConc = concreteTexture(0x6b6158, 9); // reboco quente
@@ -144,7 +196,7 @@ export function buildPalco(scene: THREE.Scene): SceneBundle {
   const beamMat = new THREE.MeshBasicMaterial({
     map: beamTexture(),
     transparent: true,
-    opacity: 0.3,
+    opacity: wx.beamOp,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -516,10 +568,12 @@ export function buildPalco(scene: THREE.Scene): SceneBundle {
 
   // ================= ILUMINAÇÃO =================
   // teatro ao anoitecer: hemisfério morno + holofote principal quente
-  const hemi = new THREE.HemisphereLight(0xc9b8a8, 0x2e2118, 1.3);
+  // (Etapa 17: o clima reescreve a luz — noite vira espetáculo, neblina
+  // vira fumaça de palco)
+  const hemi = new THREE.HemisphereLight(wx.hemiSky, wx.hemiGround, wx.hemiInt);
   scene.add(hemi);
 
-  const dir = new THREE.DirectionalLight(0xffe2b0, 3.0);
+  const dir = new THREE.DirectionalLight(wx.dirColor, wx.dirInt);
   dir.position.set(8, 17, -6);
   dir.castShadow = true;
   dir.shadow.mapSize.set(1024, 1024);
@@ -541,16 +595,16 @@ export function buildPalco(scene: THREE.Scene): SceneBundle {
     }
   };
 
-  const siteALight = new THREE.PointLight(COLORS.TEAL, 11, 17, 1.6);
+  const siteALight = new THREE.PointLight(COLORS.TEAL, wx.siteA, 17, 1.6);
   siteALight.position.set(-15, 2.8, -11);
   scene.add(siteALight);
-  const stageLight = new THREE.PointLight(COLORS.MAGENTA, 13, 19, 1.6);
+  const stageLight = new THREE.PointLight(COLORS.MAGENTA, wx.stage, 19, 1.6);
   stageLight.position.set(11, 3.4, -11);
   scene.add(stageLight);
-  const plateiaLight = new THREE.PointLight(0xffe8c8, 8, 15, 1.6);
+  const plateiaLight = new THREE.PointLight(0xffe8c8, wx.plateia, 15, 1.6);
   plateiaLight.position.set(0, 3.6, 1);
   scene.add(plateiaLight);
-  const foyerLight = new THREE.PointLight(0xffd9a0, 7, 13, 1.6);
+  const foyerLight = new THREE.PointLight(0xffd9a0, wx.foyer, 13, 1.6);
   foyerLight.position.set(0, 3.6, 13.5);
   scene.add(foyerLight);
 
@@ -562,8 +616,8 @@ export function buildPalco(scene: THREE.Scene): SceneBundle {
 
   const update = (dt: number, t: number) => {
     viz.update(dt, t);
-    siteALight.intensity = 11 + Math.sin(t * 3.4) * 3.5;
-    stageLight.intensity = 13 + Math.sin(t * 3.4 + Math.PI) * 4;
+    siteALight.intensity = wx.siteA + Math.sin(t * 3.4) * 3.5;
+    stageLight.intensity = wx.stage + Math.sin(t * 3.4 + Math.PI) * 4;
     pylonA.opacity = 0.75 + Math.abs(Math.sin(t * 2.2)) * 0.25;
     pylonB.opacity = 0.75 + Math.abs(Math.sin(t * 2.2 + 0.8)) * 0.25;
   };

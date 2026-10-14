@@ -6,10 +6,18 @@ import React, { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AGENTS, CSS, ROUND, type AgentId } from '../config/constants';
-import { MAPS, type MapId } from '../config/maps';
+import { MAPS, WEATHERS, WEATHER_ORDER, type MapId, type WeatherId } from '../config/maps';
 import { ART } from './art';
 import { FadeSlide, MenuButton, MONO, Pulsing, XpBar } from './parts';
-import { careerXp, getProfile, levelInfo, rankTitle, saveProfile } from './profile';
+import {
+  achievementViews,
+  careerXp,
+  getDailyMissions,
+  getProfile,
+  levelInfo,
+  rankTitle,
+  saveProfile,
+} from './profile';
 import { sessionState } from '../core/state';
 import { SFX } from '../game/Audio';
 
@@ -20,21 +28,29 @@ export default function HomeScreen({
   onTraining,
   onAgents,
   onSettings,
+  onMissions,
 }: {
   onPlay: () => void;
   onTraining: () => void;
   onAgents: () => void;
   onSettings: () => void;
+  onMissions: () => void;
 }) {
   const [briefing, setBriefing] = useState(false);
   const [mapTick, setMapTick] = useState(0); // re-render quando troca o mapa
+  const [wxTick, setWxTick] = useState(0); // ...ou o clima (Etapa 17)
   const profile = getProfile();
   const agent = profile.agent;
   const A = AGENTS[agent];
   const M = MAPS[profile.map];
+  const W = WEATHERS[profile.weather];
   const xp = careerXp(profile.career);
   const { level, into, need } = levelInfo(xp);
   const c = profile.career;
+  const missions = getDailyMissions();
+  const missionsDone = missions.filter((m) => m.done).length;
+  const achievements = achievementViews(c);
+  const achDone = achievements.filter((a) => a.done).length;
 
   const cycleMap = () => {
     const i = MAP_ORDER.indexOf(sessionState.map);
@@ -45,6 +61,17 @@ export default function HomeScreen({
     setMapTick((t) => t + 1); // re-render com o mapa novo
   };
   void mapTick; // leitura explícita (evita warning de variável não usada)
+
+  // Etapa 17: o clima da partida — arte e combate mudam junto
+  const cycleWeather = () => {
+    const i = WEATHER_ORDER.indexOf(sessionState.weather);
+    const next = WEATHER_ORDER[(i + 1) % WEATHER_ORDER.length] as WeatherId;
+    sessionState.weather = next;
+    SFX.play('ui', 0.45);
+    saveProfile();
+    setWxTick((t) => t + 1);
+  };
+  void wxTick;
 
   return (
     <View style={hs.root}>
@@ -109,6 +136,15 @@ export default function HomeScreen({
         </FadeSlide>
         <FadeSlide delay={380}>
           <MenuButton
+            glyph="✦"
+            label="MISSÕES"
+            sub={`diárias ${missionsDone}/${missions.length} · conquistas ${achDone}/${achievements.length}`}
+            accent={missionsDone < 3 ? '#FFD37A' : CSS.TEAL}
+            onPress={() => { SFX.play('ui', 0.45); onMissions(); }}
+          />
+        </FadeSlide>
+        <FadeSlide delay={460}>
+          <MenuButton
             glyph="⚙"
             label="AJUSTES"
             sub="sens · gráficos · som"
@@ -127,14 +163,23 @@ export default function HomeScreen({
         </View>
       </View>
 
-      {/* ---- centro-baixo: mapa + JOGAR ---- */}
+      {/* ---- centro-baixo: mapa + clima + JOGAR ---- */}
       <View style={hs.playBlock}>
         <FadeSlide delay={460}>
-          <Pressable style={hs.mapChip} onPress={cycleMap}>
-            <Text style={hs.mapArrow}>◂</Text>
-            <Text style={[hs.mapName, { color: M.corCss }]}>{M.nome}</Text>
-            <Text style={hs.mapArrow}>▸</Text>
-          </Pressable>
+          <View style={hs.chipRow}>
+            <Pressable style={hs.mapChip} onPress={cycleMap}>
+              <Text style={hs.mapArrow}>◂</Text>
+              <Text style={[hs.mapName, { color: M.corCss }]}>{M.nome}</Text>
+              <Text style={hs.mapArrow}>▸</Text>
+            </Pressable>
+            {/* Etapa 17: o clima ao lado do mapa — a partida muda de cara */}
+            <Pressable style={hs.mapChip} onPress={cycleWeather}>
+              <Text style={hs.mapArrow}>{W.glyph}</Text>
+              <Text style={[hs.mapName, { color: W.corCss }]}>{W.nome}</Text>
+              <Text style={hs.mapArrow}>▸</Text>
+            </Pressable>
+          </View>
+          <Text style={hs.wxHint} numberOfLines={1}>{W.tagline}</Text>
         </FadeSlide>
 
         <FadeSlide delay={540}>
@@ -169,7 +214,7 @@ export default function HomeScreen({
         <Text style={hs.footCareer}>
           {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
         </Text>
-        <Text style={hs.footVer}>v0.16 · mrspecterr/Pulso</Text>
+        <Text style={hs.footVer}>v0.17 · mrspecterr/Pulso</Text>
       </View>
 
       {/* ---- briefing: como jogar ---- */}
@@ -292,7 +337,7 @@ const hs = StyleSheet.create({
   },
   agentRoleTxt: { fontFamily: MONO, fontSize: 8.5, letterSpacing: 3 },
 
-  // -- bloco de jogo (centro-baixo) --
+  // -- centro-baixo --
   playBlock: {
     position: 'absolute',
     bottom: 44,
@@ -300,6 +345,7 @@ const hs = StyleSheet.create({
     right: 0,
     alignItems: 'center',
   },
+  chipRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   mapChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -309,7 +355,15 @@ const hs = StyleSheet.create({
     backgroundColor: 'rgba(11,15,20,0.8)',
     paddingHorizontal: 12,
     paddingVertical: 4,
-    marginBottom: 9,
+  },
+  wxHint: {
+    fontFamily: MONO,
+    fontSize: 7.5,
+    letterSpacing: 1.5,
+    color: CSS.TEXT_DIM,
+    marginTop: 4,
+    marginBottom: 5,
+    textAlign: 'center',
   },
   mapArrow: { fontFamily: MONO, fontSize: 11, color: CSS.TEXT_DIM, marginHorizontal: 8 },
   mapName: { fontFamily: MONO, fontSize: 11, fontWeight: 'bold', letterSpacing: 3 },

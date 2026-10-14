@@ -42,6 +42,8 @@ export const BTN = {
   // dois Traços, empilhados acima da munição
   TRACO1: { right: 34, bottom: 208, w: 72, h: 72 },
   TRACO2: { right: 34, bottom: 290, w: 72, h: 72 },
+  // terceiro Traço (Etapa 17): à esquerda do primeiro — o "L" do kit
+  TRACO3: { right: 118, bottom: 208, w: 72, h: 72 },
   // canal de plantio (retângulo ~150×68)
   PLANT: { right: 150, bottom: 128, w: 150, h: 68 },
   // sensibilidade, qualidade e som — coluna ESQUERDA, abaixo das vitais do HUD
@@ -225,6 +227,9 @@ export const TRACOS = {
   BARREIRA_WIDTH: 4, // m
   BARREIRA_HEIGHT: 2.6, // m
   BARREIRA_DIST: 3.2, // distância erguida à frente do jogador
+  SURDINA_USES: 1,
+  SURDINA_RANGE: 13, // raio ensurdecido (m)
+  SURDINA_MS: 6000, // duração da surdez
   // ECO — batedora
   IMPULSO_USES: 2,
   IMPULSO_DIST: 8.5, // alcance total do arremesso (m)
@@ -233,6 +238,10 @@ export const TRACOS = {
   SONAR_USES: 1,
   SONAR_RANGE: 22, // raio revelado (m)
   SONAR_MS: 5000, // duração da revelação
+  MARCA_USES: 2,
+  MARCA_MS: 8000, // duração da marcação
+  MARCA_FOV_DOT: 0.78, // cosseno do cone de mira da marca (~39°)
+  MARCA_RANGE: 34, // alcance do dardo rastreador (m)
   // GRAVE — vanguarda
   COURACA_USES: 1,
   COURACA_SHIELD: 50, // escudo temporal
@@ -241,6 +250,9 @@ export const TRACOS = {
   ONDA_RANGE: 6.5, // raio da onda de choque (m)
   ONDA_DMG: 55,
   ONDA_PUSH: 3.5, // empurrão nos operadores (m)
+  POSTURA_USES: 1,
+  POSTURA_MS: 4500, // duração do cotovelo fincado
+  POSTURA_MOVE_MUL: 0.55, // andar devagar é o preço da mira morta
   // VIBRATO — regente (Etapa 16)
   CADENCIA_USES: 1,
   CADENCIA_HEAL: 40, // vida devolvida ao longo do canal
@@ -252,18 +264,25 @@ export const TRACOS = {
   RITARDANDO_MS: 4500, // duração da lentidão
   RITARDANDO_MUL: 0.45, // multiplicador de velocidade dos DIRACs
   RITARDANDO_REACT_MS: 350, // reação extra enquanto o campo segura
+  ACORDE_USES: 1,
+  ACORDE_MS: 6000, // duração do escudo harmônico
+  ACORDE_MUL: 0.65, // multiplicador do dano recebido (esquadrão inteiro)
 } as const;
 
-// --- agentes jogáveis (Etapa 8 · VIBRADO Etapa 16) ---
+// --- agentes jogáveis (Etapa 8 · VIBRADO Etapa 16 · 3º Traço Etapa 17) ---
 export type TracoKey =
   | 'cenzura'
   | 'barreira'
+  | 'surdina'
   | 'impulso'
   | 'sonar'
+  | 'marca'
   | 'couraca'
   | 'onda'
+  | 'postura'
   | 'cadencia'
-  | 'ritardando';
+  | 'ritardando'
+  | 'acorde';
 
 export interface TracoSpec {
   key: TracoKey;
@@ -283,7 +302,7 @@ export interface AgentSpec {
   corCss: string; // mesma cor para o HUD
   bio: string;
   speedMul: number; // multiplicador de MOVE_SPEED (1 = padrão)
-  tracos: [TracoSpec, TracoSpec]; // todo kit tem exatamente 2 Traços
+  tracos: TracoSpec[]; // 3 Traços por kit (Etapa 17: o terceiro chegou)
 }
 
 export const AGENTS: Record<AgentId, AgentSpec> = {
@@ -311,6 +330,14 @@ export const AGENTS: Record<AgentId, AgentSpec> = {
         cdMs: 0,
         desc: 'muro de ressonância que bloqueia visão, balas e passagem',
       },
+      {
+        key: 'surdina',
+        label: 'SURDINA',
+        glyph: '⌾',
+        uses: TRACOS.SURDINA_USES,
+        cdMs: 0,
+        desc: 'campo que ensurdece DIRACs próximos: tiros não os alertam',
+      },
     ],
   },
   ECO: {
@@ -336,6 +363,14 @@ export const AGENTS: Record<AgentId, AgentSpec> = {
         uses: TRACOS.SONAR_USES,
         cdMs: 0,
         desc: 'revela operadores próximos através das paredes',
+      },
+      {
+        key: 'marca',
+        label: 'MARCA',
+        glyph: '◉',
+        uses: TRACOS.MARCA_USES,
+        cdMs: 0,
+        desc: 'dardo rastreador: marca o alvo na mira no minimapa',
       },
     ],
   },
@@ -363,6 +398,14 @@ export const AGENTS: Record<AgentId, AgentSpec> = {
         cdMs: 0,
         desc: 'detonação que fere e arremessa operadores ao redor',
       },
+      {
+        key: 'postura',
+        label: 'POSTURA',
+        glyph: '◫',
+        uses: TRACOS.POSTURA_USES,
+        cdMs: 0,
+        desc: 'finca o cotovelo: zero dispersão por 4,5s — mas anda devagar',
+      },
     ],
   },
   VIBRATO: {
@@ -388,6 +431,14 @@ export const AGENTS: Record<AgentId, AgentSpec> = {
         uses: TRACOS.RITARDANDO_USES,
         cdMs: 0,
         desc: 'campo que desacelera DIRACs próximos por 4,5s',
+      },
+      {
+        key: 'acorde',
+        label: 'ACORDE',
+        glyph: '❖',
+        uses: TRACOS.ACORDE_USES,
+        cdMs: 0,
+        desc: 'escudo harmônico: −35% de dano em você e no esquadrão',
       },
     ],
   },
@@ -440,3 +491,9 @@ export const QUALITY_ORDER: QualityId[] = ['FLUIDO', 'MEDIO', 'NITIDO'];
 export const TRAINING = {
   RESPAWN_MS: 1500, // caído → volta ao spawn com kit recarregado
 } as const;
+
+// --- botão do 3º Traço (Etapa 17) ---
+// A pilha à direita (TRACO1/TRACO2, de baixo para cima) não cabe um terceiro
+// degrau em telas 390px — o terceiro botão abre para a ESQUERDA na base da
+// pilha, formando um "L" com o primeiro. O hit-test da camada de input usa
+// as mesmas âncoras (nunca divergem).

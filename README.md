@@ -25,11 +25,21 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 | Recarregar | Botão `R` |
 | Plantar Diapasão | Segurar o botão `◈` dentro do site |
 | Comprar | Loja durante a fase de compra |
-| Traços | Botões `◈` `⇢` `⛨` (kit do agente) |
+| Traços | Botões à direita (3 por agente) — `◈` `▤` `⌾` · `⇢` `◎` `◉` · `⛨` `✸` `◫` · `♪` `◐` `❖` |
 | Som | Botão `SOM` (100% · 50% · mudo) |
 
 ## 🧩 Sistemas do jogo
 
+- **Frente Climática & Progressão (v0.17)** — a partida muda de cara — e de regras:
+  - **Clima por partida (PADRÃO · NOITE · NEBLINA)** — escolha ao lado do mapa no hub, persiste no perfil. **NOITE**: blecaute — luar frio, neon dos sites carregando a leitura e DIRACs enxergando 20% menos; **NEBLINA**: vapor engolindo a estação, alcance de percepção 38% menor, audição cortada e reação mais lenta — ambos os mapas reescritos por clima (fog, luzes, exposição)
+  - **3º Traço por kit** — o botão do kit vira um "L" à direita da munição:
+    - **MUDO** — ⌾ **SURDINA** ensurdece DIRACs próximos por 6s (tiros não alertam; visor apagado)
+    - **ECO** — ◉ **MARCA** dardo rastreador: o alvo na mira fica revelado no minimapa por 8s (atravessa parede; 2 usos)
+    - **GRAVE** — ◫ **POSTURA** finca o cotovelo: zero dispersão e recuo amortecido por 4,5s — o passo cai pra 55%
+    - **VIBRATO** — ❖ **ACORDE** escudo harmônico: −35% de dano em você e no esquadrão inteiro por 6s
+  - **Missões diárias** — 3 por dia (renascem à meia-noite, sorteio determinístico pela data): elimine DIRACs, plante o Diapasão, vença partidas… o XP cai direto na carreira e o fim de partida mostra o que fechou
+  - **Conquistas** — 10 marcos permanentes (PRIMEIRO PULSO, REGENTE, CIRURGIA, CENTURIÃO, MÃO DE DIAPASÃO, RECITAL, INQUEBRÁVEL…): parede de estrelas no quadro MISSÕES, com barras de progresso honestas
+  - **Carreira estendida** — plantios, quedas e vitórias sem cair agora contam; XP de missões creditado fora da fórmula base
 - **Arsenal & Campo de Provas (v0.16)** — a terceira arma, o quarto operador e o modo treino:
   - **GLISSANDO · escopeta de corredera** (2.100 dB) — 8 balins por disparo em cone de dispersão: letal à queima-roupa (8×16 na cabeça = abate), fraca à distância; pente de 6, bombeamento de 850ms com **a corredera animada no viewmodel** e o som do rack depois de cada tiro
   - **VIBRATO · REGENTE** — o quarto operador CORO (+2% velocidade): ♪ **CADÊNCIA** reafina o esquadrão (+40 de vida ao longo de 3,5s no jogador e nos aliados próximos) · ◐ **RITARDANDO** ergue um campo de lentidão (9m por 4,5s): DIRACs desacelerados, com reação atrasada e o visor violeta enquanto o campo atua
@@ -41,11 +51,11 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
   - **Ajustes** — sensibilidade (BAIXA · PADRÃO · ALTA · MÁXIMA), gráficos, áudio, **vibração** e zerar dados — tudo persistido
   - **Perfil persistente (AsyncStorage)** — agente e mapa favoritos, configurações e carreira (partidas, vitórias, abates, headshots, precisão, recorde de abates) sobrevivem ao fechar o app
   - **BRIEFING** — o manual da Operação Rissonância dentro do hub (objetivo, fases, economia, controles)
-- **Agentes CORO (v0.8)** — escolha o operador antes da partida; cada kit tem dois Traços e uma velocidade própria:
-  - **MUDO · TÁTICO** — ◈ CENZURA cega operadores com linha de visão · ▤ BARREIRA ergue muro de ressonância
-  - **ECO · BATEDORA** (+10% velocidade) — ⇢ IMPULSO arremesso de 8,5m · ◎ SONAR revela inimigos através de paredes
-  - **GRAVE · VANGUARDA** (−6% velocidade) — ⛨ COURAÇA escudo temporal de 50 · ✸ ONDA DE CHOQUE fere e arremessa quem está perto
-  - **VIBRATO · REGENTE** (+2% velocidade) — ♪ CADÊNCIA reafina o esquadrão · ◐ RITARDANDO desacelera DIRACs próximos (v0.16)
+- **Agentes CORO (v0.8 · 3º Traço v0.17)** — escolha o operador antes da partida; cada kit tem três Traços e uma velocidade própria:
+  - **MUDO · TÁTICO** — ◈ CENZURA cega com linha de visão · ▤ BARREIRA ergue muro · ⌾ SURDINA ensurdece quem está perto
+  - **ECO · BATEDORA** (+10% velocidade) — ⇢ IMPULSO arremesso de 8,5m · ◎ SONAR revela através de paredes · ◉ MARCA rastreia o alvo na mira
+  - **GRAVE · VANGUARDA** (−6% velocidade) — ⛨ COURAÇA escudo temporal de 50 · ✸ ONDA DE CHOQUE fere e arremessa · ◫ POSTURA mira morta com passo curto
+  - **VIBRATO · REGENTE** (+2% velocidade) — ♪ CADÊNCIA reafina o esquadrão · ◐ RITARDANDO desacelera DIRACs próximos · ❖ ACORDE escudo harmônico do esquadrão
 - **Economia dB** — créditos por abates, vitórias e derrotas (cap 9.000); compre arsenais (STACCATO, GLISSANDO, LEGATO) e trajes com escudo.
 - **Rodadas** — fase de compra → ação → desfecho; primeira facção a 7 rodadas vence a partida.
 - **Diapasão** — o objetivo: plante no Site A ou B e proteja a carga por 40s.
@@ -79,7 +89,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **14** — Conteúdo e longevidade: segundo mapa (PALCO), seleção de mapa, IA e minimapa agnósticos de mapa (MapDef)
 - [x] **15** — Cliente de jogo: splash de entrada, HUB com artes dos operadores e perfil/carreira persistentes, galeria de agentes, ajustes com vibração e briefing no hub
 - [x] **16** — Arsenal & Campo de Provas: escopeta GLISSANDO (8 balins, corredera animada), operador VIBRATO com CADÊNCIA/RITARDANDO e modo treino com dB infinito
-- [ ] **17+** — Clima/variantes de mapa, mais Traços por kit, conquistas e missões diárias
+- [x] **17** — Frente climática & progressão: clima por partida (NOITE/NEBLINA com impacto no combate), 3º Traço por kit (SURDINA/MARCA/POSTURA/ACORDE), missões diárias e 10 conquistas
+- [ ] **18+** — modo espectador de replay, mais mapas, ranking sazonal
 
 ## 🔧 Como o APK é feito (automático)
 

@@ -8,16 +8,22 @@ import { hudEvents } from '../core/state';
  * Cada kit tem a sua assinatura visual: CENZURA (clarão branco),
  * BARREIRA/IMPULSO (véu teal), SONAR (véu ciano), COURAÇA (âmbar),
  * ONDA (flash magenta), CADÊNCIA/RITARDANDO (violeta — Etapa 16).
+ * Etapa 17: SURDINA (cinza chumbo), MARCA (teal vivo), POSTURA (âmbar
+ * firme) e ACORDE (lilás) entram no baile.
  */
 const FX: Record<TracoKey, { color: string; peak: number; ms: number }> = {
   cenzura: { color: '#F8FEFF', peak: 0.42, ms: 420 },
   barreira: { color: CSS.TEAL, peak: 0.22, ms: 300 },
+  surdina: { color: '#5A6570', peak: 0.30, ms: 460 },
   impulso: { color: CSS.TEAL, peak: 0.30, ms: 260 },
   sonar: { color: '#9FD8E8', peak: 0.26, ms: 480 },
+  marca: { color: '#4FD1B5', peak: 0.24, ms: 380 },
   couraca: { color: '#FFB454', peak: 0.28, ms: 420 },
   onda: { color: CSS.MAGENTA, peak: 0.34, ms: 320 },
+  postura: { color: '#E8C08A', peak: 0.20, ms: 520 },
   cadencia: { color: '#B48CFF', peak: 0.24, ms: 520 },
   ritardando: { color: '#8FB7FF', peak: 0.28, ms: 460 },
+  acorde: { color: '#C9A0FF', peak: 0.26, ms: 560 },
 };
 
 export default function TracoFlash() {

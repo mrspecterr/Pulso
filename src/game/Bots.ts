@@ -18,7 +18,8 @@
 
 import * as THREE from 'three';
 import { BOTS, COLORS, DEFUSE, DIFFICULTY, TRACOS } from '../config/constants';
-import type { MapDef } from '../config/maps';
+import type { MapDef, WeatherDef } from '../config/maps';
+import { WEATHERS } from '../config/maps';
 import { StaticBuckets } from '../core/merge';
 import { hudEvents } from '../core/state';
 
@@ -73,6 +74,7 @@ interface Bot {
   soundZ: number;
   pingUntil: number; // minimapa aceso até aqui (atirou/levou dano, Etapa 13)
   slowUntil: number; // RITARDANDO (VIBRATO, Etapa 16): campo de lentidão
+  deafUntil: number; // SURDINA (MUDO, Etapa 17): ensurdecido, ignora tiros
 }
 
 export interface BotCtx {
@@ -132,13 +134,20 @@ export class BotSquad {
   private tmpCol = new THREE.Color();
   /** nível de ameaça (Etapa 13): DIRACs se adaptam ao placar */
   private lvl = 0;
+  /** clima da sessão (Etapa 17): percepção/reação/audição dilatadas */
+  private weather: WeatherDef = WEATHERS.PADRAO;
 
   /** Nível de ameaça da rodada — recalculado no início de cada uma. */
   setLevel(n: number) {
     this.lvl = Math.max(0, Math.min(DIFFICULTY.MAX_LEVEL, Math.round(n)));
   }
 
-  // parâmetros efetivos (base + nível de ameaça)
+  /** Clima da partida (Etapa 17) — chamar antes do primeiro update. */
+  setWeather(w: 'PADRAO' | 'NOITE' | 'NEBLINA') {
+    this.weather = WEATHERS[w];
+  }
+
+  // parâmetros efetivos (base + nível de ameaça + clima)
   private accBase() {
     return BOTS.ACC_BASE + this.lvl * DIFFICULTY.ACC_PER_LEVEL;
   }
@@ -146,15 +155,15 @@ export class BotSquad {
     return BOTS.DMG + this.lvl * DIFFICULTY.DMG_PER_LEVEL;
   }
   private perceive() {
-    return BOTS.PERCEIVE_RANGE + this.lvl * DIFFICULTY.PERCEIVE_PER_LEVEL;
+    return (BOTS.PERCEIVE_RANGE + this.lvl * DIFFICULTY.PERCEIVE_PER_LEVEL) * this.weather.perceiveMul;
   }
   private retakeSpeed() {
     return DEFUSE.RETAKE_SPEED + this.lvl * DIFFICULTY.RETAKE_PER_LEVEL;
   }
-  /** janela de reação sorteada (menor a cada nível de ameaça) */
+  /** janela de reação sorteada (menor a cada nível; clima pesa a favor) */
   private reactDraw(now: number) {
-    const lo = Math.max(240, BOTS.REACT_MIN_MS - this.lvl * DIFFICULTY.REACT_MS_PER_LEVEL);
-    const hi = Math.max(lo + 80, BOTS.REACT_MAX_MS - this.lvl * DIFFICULTY.REACT_MS_PER_LEVEL);
+    const lo = Math.max(240, BOTS.REACT_MIN_MS - this.lvl * DIFFICULTY.REACT_MS_PER_LEVEL) + this.weather.reactAddMs;
+    const hi = Math.max(lo + 80, BOTS.REACT_MAX_MS - this.lvl * DIFFICULTY.REACT_MS_PER_LEVEL) + this.weather.reactAddMs;
     return now + lo + Math.random() * (hi - lo);
   }
 
@@ -305,6 +314,7 @@ export class BotSquad {
         soundZ: 0,
         pingUntil: 0,
         slowUntil: 0,
+        deafUntil: 0,
       });
     });
 
@@ -477,15 +487,68 @@ export class BotSquad {
     }
   }
 
+  /**
+   * SURDINA (Traço do MUDO, Etapa 17): campo de surdez — DIRACs no raio
+   * não ouvem tiros nem gritos de alerta enquanto durar. Diferente da
+   * CENZURA (linha de visão), é ressonância no ar: atravessa parede.
+   */
+  deafenNear(playerPos: THREE.Vector3, now: number, range: number, deafMs: number) {
+    let deafened = 0;
+    for (const b of this.bots) {
+      if (b.phase === 'dying' || b.phase === 'dead') continue;
+      const d = Math.hypot(
+        b.group.position.x - playerPos.x,
+        b.group.position.z - playerPos.z
+      );
+      if (d <= range) {
+        b.deafUntil = Math.max(b.deafUntil, now + deafMs);
+        deafened++;
+      }
+    }
+    return deafened;
+  }
+
+  /**
+   * MARCA (Traço da ECO, Etapa 17): dardo rastreador — o DIRAC mais
+   * alinhado com a mira (dentro do cone e do alcance) fica marcado:
+   * silhueta revelada + pingo no minimapa até o prazo. Não precisa de
+   * linha de visão (a marca atravessa parede — rastreio de sinal).
+   * Retorna o id marcado, ou -1 se não havia alvo no cone.
+   */
+  markNearest(camera: THREE.Camera, fovDot: number, range: number, until: number): number {
+    camera.getWorldDirection(this.tmpDir);
+    let best = -1;
+    let bestDot = fovDot; // precisa superar o cosseno do cone
+    for (const b of this.bots) {
+      if (b.phase === 'dying' || b.phase === 'dead') continue;
+      this.tmpA.subVectors(b.group.position, camera.position);
+      const dist = this.tmpA.length();
+      if (dist > range) continue;
+      this.tmpA.normalize();
+      const dot = this.tmpA.dot(this.tmpDir);
+      if (dot >= bestDot) {
+        bestDot = dot; // mais alinhado vence, mesmo acima do corte
+        best = b.id;
+      }
+    }
+    if (best >= 0) {
+      const b = this.bots[best];
+      b.revealUntil = Math.max(b.revealUntil, until);
+      b.pingUntil = Math.max(b.pingUntil, until);
+    }
+    return best;
+  }
+
   /** Tiro CORO ecoou (jogador ou aliado) — bots no alcance entram em alerta. */
   heardShot(pos: THREE.Vector3, now: number) {
     for (const b of this.bots) {
       if (b.phase !== 'patrol') continue;
+      if (now < b.deafUntil) continue; // SURDINA: o estrondo não chega
       const d = Math.hypot(
         b.group.position.x - pos.x,
         b.group.position.z - pos.z
       );
-      if (d <= BOTS.HEAR_RANGE) {
+      if (d <= BOTS.HEAR_RANGE * this.weather.hearMul) {
         b.soundX = pos.x;
         b.soundZ = pos.z;
         b.phase = 'alert';
@@ -523,6 +586,7 @@ export class BotSquad {
       b.soundZ = 0;
       b.pingUntil = 0;
       b.slowUntil = 0;
+      b.deafUntil = 0;
       b.group.visible = true;
       b.group.rotation.set(0, 0, 0);
       b.group.position.set(b.route[0][0], 0, b.route[0][1]);
@@ -564,8 +628,10 @@ export class BotSquad {
 
       // CENZURA: visor branco piscando enquanto cego
       // RITARDANDO (Etapa 16): visor violeta enquanto o campo segura
+      // SURDINA (Etapa 17): visor apagado — o operador está ensurdecido
       const blinded = now < b.blindUntil;
       const slowed = now < b.slowUntil;
+      const deaf = now < b.deafUntil;
       const SLOW_MUL = TRACOS.RITARDANDO_MUL;
       if (blinded) {
         const k = 0.5 + Math.abs(Math.sin(now / 45)) * 0.5;
@@ -573,6 +639,8 @@ export class BotSquad {
       } else if (slowed) {
         const k = 0.72 + Math.abs(Math.sin(now / 130)) * 0.28;
         b.visorMat.color.setRGB(0.71 * k, 0.55 * k, 1.0 * k);
+      } else if (deaf) {
+        b.visorMat.color.setRGB(0.28, 0.3, 0.33);
       } else if (b.visorMat.color.r !== COLORS.MAGENTA / 16777216) {
         b.visorMat.color.setHex(COLORS.MAGENTA);
       }

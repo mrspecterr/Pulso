@@ -9,12 +9,16 @@ const MONO = 'monospace';
 const TRACO_COLOR: Record<TracoKey, string> = {
   cenzura: '#F2FBFF',
   barreira: CSS.TEAL,
+  surdina: '#8A97A8',
   impulso: CSS.TEAL,
   sonar: '#9FD8E8',
+  marca: '#4FD1B5',
   couraca: '#FFB454',
   onda: CSS.MAGENTA,
+  postura: '#E8C08A',
   cadencia: '#B48CFF',
   ritardando: '#8FB7FF',
+  acorde: '#C9A0FF',
 };
 
 interface Snap {
@@ -52,7 +56,9 @@ export default function TracoButtons() {
       {A.tracos.map((spec, i) => {
         const ready = s.uses[spec.key] > 0 && s.cdLeft[spec.key] <= 0;
         const color = TRACO_COLOR[spec.key];
-        const pos = i === 0 ? BTN.TRACO1 : BTN.TRACO2;
+        // o kit tem 3 botões: pilha de dois à direita + o terceiro abrindo
+        // o "L" (Etapa 17) — as âncoras são as mesmas do hit-test
+        const pos = i === 0 ? BTN.TRACO1 : i === 1 ? BTN.TRACO2 : BTN.TRACO3;
         return (
           <View
             key={spec.key}

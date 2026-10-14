@@ -127,6 +127,7 @@ export default function SettingsScreen({ onBack }: { onBack: () => void }) {
             <Text style={st.careerItem}>{c.wins} vitórias</Text>
             <Text style={st.careerItem}>{c.kills} abates</Text>
             <Text style={st.careerItem}>{c.headshots} headshots</Text>
+            <Text style={st.careerItem}>{c.plants} plantios</Text>
             <Text style={st.careerItem}>{c.shots > 0 ? `${acc}% precisão` : 'sem disparos'}</Text>
           </View>
 
@@ -147,7 +148,7 @@ export default function SettingsScreen({ onBack }: { onBack: () => void }) {
             )}
           </View>
 
-          <Text style={st.foot}>PULSO v0.16.0 · github.com/mrspecterr/Pulso</Text>
+          <Text style={st.foot}>PULSO v0.17.0 · github.com/mrspecterr/Pulso</Text>
         </View>
       </FadeSlide>
     </View>

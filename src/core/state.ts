@@ -3,7 +3,7 @@
 // de componente a cada frame.
 
 import type { AgentId, QualityId, TracoKey, WeaponId } from '../config/constants';
-import type { MapId } from '../config/maps';
+import type { MapId, WeatherId } from '../config/maps';
 import { Animated } from 'react-native';
 import { TRACOS } from '../config/constants';
 
@@ -25,12 +25,14 @@ export const inputState = {
 // rodadas e só muda passando pela tela de seleção. Etapa 14: o MAPA da
 // sessão vive aqui também. Etapa 16: o MODO — 'partida' (5v5 por rodadas)
 // ou 'treino' (campo de provas: dB infinito, arsenal aberto, sem rodadas).
+// Etapa 17: o CLIMA — variante de mapa (arte + números de combate).
 export type SessionMode = 'partida' | 'treino';
 
 export const sessionState = {
   agent: 'MUDO' as AgentId,
   map: 'SUBSOLO' as MapId,
   mode: 'partida' as SessionMode,
+  weather: 'PADRAO' as WeatherId,
 };
 
 // Estado de UI fora do loop (Etapa 16): painel ARSENAL do campo de provas.
@@ -71,22 +73,30 @@ export const tracoState = {
   uses: {
     cenzura: TRACOS.CENZURA_USES,
     barreira: TRACOS.BARREIRA_USES,
+    surdina: TRACOS.SURDINA_USES,
     impulso: TRACOS.IMPULSO_USES,
     sonar: TRACOS.SONAR_USES,
+    marca: TRACOS.MARCA_USES,
     couraca: TRACOS.COURACA_USES,
     onda: TRACOS.ONDA_USES,
+    postura: TRACOS.POSTURA_USES,
     cadencia: TRACOS.CADENCIA_USES,
     ritardando: TRACOS.RITARDANDO_USES,
+    acorde: TRACOS.ACORDE_USES,
   } as Record<TracoKey, number>,
   readyAt: {
     cenzura: 0,
     barreira: 0,
+    surdina: 0,
     impulso: 0,
     sonar: 0,
+    marca: 0,
     couraca: 0,
     onda: 0,
+    postura: 0,
     cadencia: 0,
     ritardando: 0,
+    acorde: 0,
   } as Record<TracoKey, number>,
 };
 
@@ -98,6 +108,14 @@ export const playerVitals = {
   shieldBonusUntil: 0, // timestamp em que a COURAÇA expira
   regenUntil: 0, // CADÊNCIA (VIBRATO, Etapa 16): regenera até este timestamp
   regenPerSec: 0, // vida por segundo enquanto reafina
+};
+
+// ACORDE (VIBRATO, Etapa 17): escudo harmônico — enquanto ativo, o dano que
+// chega ao jogador E aos aliados é multiplicado (combatModifiers.guardMul).
+// O Allies.damage lê isto no canal de dano; a expiração rola no loop do Game.
+export const combatModifiers = {
+  guardUntil: 0, // ACORDE ativo até este timestamp
+  guardMul: TRACOS.ACORDE_MUL, // multiplicador do dano recebido
 };
 
 // Estado da partida (Etapa 5 — economia e rodadas). Escrito pelo
@@ -170,6 +188,14 @@ export const scoreboard = {
   kills: {} as Record<string, number>,
 };
 
+// Estatísticas da PARTIDA além do tiro (Etapa 17): plantios do jogador e
+// quedas — o que a carreira, as missões diárias e as conquistas consomem.
+// Zerado no início de cada partida (junto com gameStats) e lido no fim.
+export const matchStats = {
+  plants: 0, // vezes que ESTE jogador plantou o Diapasão
+  deaths: 0, // vezes que caiu
+};
+
 // Visual do joystick (Etapa 10): valores Animated module-level — a camada
 // de input escreve, o componente visual apenas lê. Nenhum re-render.
 export const joyVisual = {
@@ -182,7 +208,7 @@ export const joyVisual = {
 // Gancho de automação/diagnóstico: expõe o estado vivo do jogo (usado nos
 // testes de runtime do projeto e para debug remoto; inofensivo no jogo).
 const g = globalThis as unknown as { __PULSO__?: object };
-g.__PULSO__ = { lookState, inputState, roundState, gameStats, playerVitals, settings, tracoState };
+g.__PULSO__ = { lookState, inputState, roundState, gameStats, matchStats, playerVitals, settings, tracoState };
 
 // Tipos de evento que o HUD pode receber do loop de jogo.
 export type HudEvent =
@@ -190,7 +216,7 @@ export type HudEvent =
   | { type: 'hit'; head: boolean }
   | { type: 'kill'; head: boolean }
   | { type: 'reload' }
-  | { type: 'planted'; site: 'A' | 'B' }
+  | { type: 'planted'; site: 'A' | 'B'; by: 'player' | 'ally' }
   | { type: 'playerHit'; dmg: number; hp: number }
   | { type: 'traco'; kind: TracoKey } // Traço executado (Etapa 7/8)
   | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim' | 'silenced' | 'sweep'; coro: number; dirac: number; dB: number }

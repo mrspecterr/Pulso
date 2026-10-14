@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AGENTS, BTN, CSS, PLAYER_HP, QUALITY, WEAPONS } from '../config/constants';
-import { MAPS } from '../config/maps';
+import { MAPS, WEATHERS } from '../config/maps';
 import { ALLY_NAMES } from '../game/Allies';
 import {
   gameStats,
@@ -180,10 +180,11 @@ export default function Hud() {
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
           {/* treino: linha curta — o painel ARSENAL cobre o centro e o chip
-              no topo já diz CAMPO DE PROVAS */}
+              no topo já diz CAMPO DE PROVAS. Etapa 17: o clima entrou na
+              linha de identidade */}
           {s.training
-            ? `TREINO · ${MAPS[sessionState.map].nome}`
-            : `RODADA ${s.roundNum} · ${MAPS[sessionState.map].nome} · v0.16`}
+            ? `TREINO · ${MAPS[sessionState.map].nome} · ${WEATHERS[sessionState.weather].nome}`
+            : `RODADA ${s.roundNum} · ${MAPS[sessionState.map].nome} · ${WEATHERS[sessionState.weather].nome}`}
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}
