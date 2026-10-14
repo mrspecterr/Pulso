@@ -23,10 +23,20 @@ export const inputState = {
 
 // Sessão (Etapa 8): o agente escolhido antes da partida; persiste entre
 // rodadas e só muda passando pela tela de seleção. Etapa 14: o MAPA da
-// sessão vive aqui também.
+// sessão vive aqui também. Etapa 16: o MODO — 'partida' (5v5 por rodadas)
+// ou 'treino' (campo de provas: dB infinito, arsenal aberto, sem rodadas).
+export type SessionMode = 'partida' | 'treino';
+
 export const sessionState = {
   agent: 'MUDO' as AgentId,
   map: 'SUBSOLO' as MapId,
+  mode: 'partida' as SessionMode,
+};
+
+// Estado de UI fora do loop (Etapa 16): painel ARSENAL do campo de provas.
+// A camada de input não é dona disto — o HUD lê por polling como todo o resto.
+export const uiState = {
+  trainMenuOpen: false, // loja aberta no meio do treino
 };
 
 export const settings = {
@@ -65,6 +75,8 @@ export const tracoState = {
     sonar: TRACOS.SONAR_USES,
     couraca: TRACOS.COURACA_USES,
     onda: TRACOS.ONDA_USES,
+    cadencia: TRACOS.CADENCIA_USES,
+    ritardando: TRACOS.RITARDANDO_USES,
   } as Record<TracoKey, number>,
   readyAt: {
     cenzura: 0,
@@ -73,6 +85,8 @@ export const tracoState = {
     sonar: 0,
     couraca: 0,
     onda: 0,
+    cadencia: 0,
+    ritardando: 0,
   } as Record<TracoKey, number>,
 };
 
@@ -82,6 +96,8 @@ export const playerVitals = {
   shield: 0, // escudo comprado (traje), dura a rodada
   shieldBonus: 0, // escudo temporal da COURAÇA (GRAVE)
   shieldBonusUntil: 0, // timestamp em que a COURAÇA expira
+  regenUntil: 0, // CADÊNCIA (VIBRATO, Etapa 16): regenera até este timestamp
+  regenPerSec: 0, // vida por segundo enquanto reafina
 };
 
 // Estado da partida (Etapa 5 — economia e rodadas). Escrito pelo

@@ -9,6 +9,7 @@ export const ART: Record<AgentId, ImageSourcePropType> = {
   MUDO: require('../../assets/art/mudo.jpg'),
   ECO: require('../../assets/art/eco.jpg'),
   GRAVE: require('../../assets/art/grave.jpg'),
+  VIBRATO: require('../../assets/art/vibrato.jpg'),
 };
 
 /** fundo neutro (título, configurações) — estação vazia na neblina teal */

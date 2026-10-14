@@ -62,7 +62,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
       </Pressable>
 
       <Text style={sp.foot}>
-        v0.15 · carreira de {p.career.matches} partida{p.career.matches === 1 ? '' : 's'} registrada
+        v0.16 · carreira de {p.career.matches} partida{p.career.matches === 1 ? '' : 's'} registrada
         {p.career.matches === 1 ? '' : 's'}
       </Text>
     </Animated.View>

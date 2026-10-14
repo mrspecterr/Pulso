@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CSS, SHIELDS, WEAPONS } from '../config/constants';
 import type { WeaponId } from '../config/constants';
-import { inputState, playerVitals, roundState } from '../core/state';
+import { inputState, playerVitals, roundState, sessionState, uiState } from '../core/state';
 import { SFX } from '../game/Audio';
 
 const MONO = 'monospace';
 
+/** arsenal na ordem da loja (Etapa 16: GLISSANDO entre a pistola e o fuzil) */
+const WEAPON_ORDER: WeaponId[] = ['STACCATO', 'GLISSANDO', 'LEGATO'];
+
 /**
  * BuyMenu — loja da fase de compra (Etapa 5).
  * Compras aplicam direto no roundState (ponte mutável) e valem para a
- * rodada seguinte / para a partida.
+ * rodada seguinte / para a partida. No CAMPO DE PROVAS (Etapa 16) a loja
+ * abre a qualquer momento pelo botão ARSENAL e o PRONTO apenas a fecha.
  */
 export default function BuyMenu() {
   const [, force] = useState(0);
@@ -19,8 +23,8 @@ export default function BuyMenu() {
   const buyWeapon = (id: WeaponId) => {
     const spec = WEAPONS[id];
     if (roundState.weapon === id) return;
-    if (id === 'LEGATO' && roundState.dB < spec.price) return;
-    if (id === 'LEGATO') {
+    if (spec.price > 0 && roundState.dB < spec.price) return;
+    if (spec.price > 0) {
       roundState.dB -= spec.price;
       SFX.play('buy', 0.85); // comprou: caixa registradora (Etapa 11)
     } else {
@@ -42,13 +46,19 @@ export default function BuyMenu() {
 
   const ready = () => {
     SFX.play('ui', 0.8);
+    // campo de provas: o botão apenas fecha a loja (não há fase p/ aceitar)
+    if (sessionState.mode === 'treino') {
+      uiState.trainMenuOpen = false;
+      refresh();
+      return;
+    }
     inputState.readyQueued = true;
   };
 
   const weaponRow = (id: WeaponId) => {
     const spec = WEAPONS[id];
     const equipped = roundState.weapon === id;
-    const canBuy = id === 'STACCATO' || equipped || roundState.dB >= spec.price;
+    const canBuy = spec.price === 0 || equipped || roundState.dB >= spec.price;
     return (
       <Pressable
         key={id}
@@ -60,6 +70,7 @@ export default function BuyMenu() {
           <Text style={[styles.rowName, !canBuy && styles.rowDim]}>{spec.name}</Text>
           <Text style={styles.rowDesc}>
             {spec.desc} · dano {spec.DMG_BODY}/{spec.DMG_HEAD}
+            {spec.PELLETS > 1 ? ` ×${spec.PELLETS}` : ''}
           </Text>
         </View>
         <Text style={[styles.rowPrice, equipped ? styles.priceOn : canBuy ? styles.priceOk : styles.rowDim]}>
@@ -79,8 +90,7 @@ export default function BuyMenu() {
       <View style={styles.secLabel}>
         <Text style={styles.sec}>ARSENAL</Text>
       </View>
-      {weaponRow('STACCATO')}
-      {weaponRow('LEGATO')}
+      {WEAPON_ORDER.map(weaponRow)}
 
       <View style={styles.secLabel}>
         <Text style={styles.sec}>TRAJE REFORÇADO</Text>
@@ -107,7 +117,9 @@ export default function BuyMenu() {
       })}
 
       <Pressable style={({ pressed }) => [styles.ready, pressed && styles.readyP]} onPress={ready}>
-        <Text style={styles.readyTxt}>PRONTO ▸</Text>
+        <Text style={styles.readyTxt}>
+          {sessionState.mode === 'treino' ? 'FECHAR ARSENAL ✕' : 'PRONTO ▸'}
+        </Text>
       </Pressable>
     </View>
   );
@@ -119,7 +131,7 @@ const styles = StyleSheet.create({
     left: '50%',
     top: '50%',
     marginLeft: -215,
-    marginTop: -130,
+    marginTop: -168, // (Etapa 16) 3 armas + trajes: painel ~330px, centrado
     width: 430,
     backgroundColor: 'rgba(9,13,18,0.92)',
     borderRadius: 12,

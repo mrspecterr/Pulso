@@ -30,6 +30,10 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Arsenal & Campo de Provas (v0.16)** — a terceira arma, o quarto operador e o modo treino:
+  - **GLISSANDO · escopeta de corredera** (2.100 dB) — 8 balins por disparo em cone de dispersão: letal à queima-roupa (8×16 na cabeça = abate), fraca à distância; pente de 6, bombeamento de 850ms com **a corredera animada no viewmodel** e o som do rack depois de cada tiro
+  - **VIBRATO · REGENTE** — o quarto operador CORO (+2% velocidade): ♪ **CADÊNCIA** reafina o esquadrão (+40 de vida ao longo de 3,5s no jogador e nos aliados próximos) · ◐ **RITARDANDO** ergue um campo de lentidão (9m por 4,5s): DIRACs desacelerados, com reação atrasada e o visor violeta enquanto o campo atua
+  - **CAMPO DE PROVAS** — treino livre direto do hub: **dB infinito**, **ARSENAL aberto a qualquer momento** (troque de arma no meio da ação), sem rodadas nem placar — os 5 DIRAC e o esquadrão seguem em campo, bonecos de aquecimento no spawn e **respawn com kit recarregado** quando você cai
 - **Cliente de jogo real (v0.15)** — entrada, hub e telas no padrão dos grandes (Free Fire, Wild Rift, Mobile Legends):
   - **Splash de entrada** — a estação vazia na neblina, o logo respirando e o equalizador de ressonância vivo; toque para entrar (o perfil carrega nesse tempo)
   - **HUB** — a **splash art do operador selecionado** dominando a tela (arte ilustrada por personagem), perfil com **nível/XP e patente reais** (RECRUTA → LENDA DO SUBSOLO — sobem jogando), carreira no rodapé, coluna de módulos (AGENTES · BRIEFING · AJUSTES), seletor de mapa e o botão **JOGAR** respirando no centro
@@ -41,7 +45,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
   - **MUDO · TÁTICO** — ◈ CENZURA cega operadores com linha de visão · ▤ BARREIRA ergue muro de ressonância
   - **ECO · BATEDORA** (+10% velocidade) — ⇢ IMPULSO arremesso de 8,5m · ◎ SONAR revela inimigos através de paredes
   - **GRAVE · VANGUARDA** (−6% velocidade) — ⛨ COURAÇA escudo temporal de 50 · ✸ ONDA DE CHOQUE fere e arremessa quem está perto
-- **Economia dB** — créditos por abates, vitórias e derrotas (cap 9.000); compre arsenais (STACCATO, LEGATO) e trajes com escudo.
+  - **VIBRATO · REGENTE** (+2% velocidade) — ♪ CADÊNCIA reafina o esquadrão · ◐ RITARDANDO desacelera DIRACs próximos (v0.16)
+- **Economia dB** — créditos por abates, vitórias e derrotas (cap 9.000); compre arsenais (STACCATO, GLISSANDO, LEGATO) e trajes com escudo.
 - **Rodadas** — fase de compra → ação → desfecho; primeira facção a 7 rodadas vence a partida.
 - **Diapasão** — o objetivo: plante no Site A ou B e proteja a carga por 40s.
 - **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas.
@@ -73,7 +78,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **13** — Polimento e equilíbrio: minimapa tático, dificuldade escalonada dos DIRACs, resgate/plantio da carga pelos aliados, placar de combate no fim de rodada
 - [x] **14** — Conteúdo e longevidade: segundo mapa (PALCO), seleção de mapa, IA e minimapa agnósticos de mapa (MapDef)
 - [x] **15** — Cliente de jogo: splash de entrada, HUB com artes dos operadores e perfil/carreira persistentes, galeria de agentes, ajustes com vibração e briefing no hub
-- [ ] **16+** — Mais armas/agentes, modo treino dedicado, clima/variantes de mapa
+- [x] **16** — Arsenal & Campo de Provas: escopeta GLISSANDO (8 balins, corredera animada), operador VIBRATO com CADÊNCIA/RITARDANDO e modo treino com dB infinito
+- [ ] **17+** — Clima/variantes de mapa, mais Traços por kit, conquistas e missões diárias
 
 ## 🔧 Como o APK é feito (automático)
 

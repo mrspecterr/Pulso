@@ -1,18 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AGENTS, BTN, CSS, PLAYER_HP, QUALITY, WEAPONS } from '../config/constants';
 import { MAPS } from '../config/maps';
 import { ALLY_NAMES } from '../game/Allies';
 import {
   gameStats,
+  inputState,
   lookState,
   playerVitals,
   roundState,
   scoreboard,
   sessionState,
   settings,
+  uiState,
 } from '../core/state';
 import type { Phase } from '../core/state';
+import { SFX } from '../game/Audio';
 import InputLayer from '../core/InputLayer';
 import BuyMenu from './BuyMenu';
 import Crosshair from './Crosshair';
@@ -68,6 +71,8 @@ interface Snap {
   diracLevel: number; // nível de ameaça DIRAC (Etapa 13)
   carrierName: string | null; // aliado com o Diapasão (Etapa 13)
   board: { coro: Array<[string, number]>; dirac: Array<[string, number]> } | null; // placar de fim de rodada (Etapa 13)
+  training: boolean; // CAMPO DE PROVAS (Etapa 16)
+  trainMenu: boolean; // arsenal aberto no treino (Etapa 16)
 }
 
 function buildBoard() {
@@ -132,6 +137,8 @@ function readState(): Snap {
         ? ALLY_NAMES[roundState.carrierAlly]
         : null,
     board: roundState.phase === 'end' ? buildBoard() : null,
+    training: sessionState.mode === 'treino',
+    trainMenu: uiState.trainMenuOpen,
   };
 }
 
@@ -160,7 +167,8 @@ export default function Hud() {
   }, []);
 
   const showCombat = s.phase === 'live' || s.phase === 'end';
-  const modalOpen = s.phase === 'buy' || s.phase === 'over';
+  const modalOpen =
+    s.phase === 'buy' || s.phase === 'over' || (s.training && s.trainMenu);
   const showPlant =
     s.phase === 'live' && s.carrying && s.inSite !== null && !s.planted && s.hp > 0;
   const timerCritical = s.phase === 'live' && s.secLeft <= 10;
@@ -171,7 +179,11 @@ export default function Hud() {
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
-          RODADA {s.roundNum} · {MAPS[sessionState.map].nome} · v0.14
+          {/* treino: linha curta — o painel ARSENAL cobre o centro e o chip
+              no topo já diz CAMPO DE PROVAS */}
+          {s.training
+            ? `TREINO · ${MAPS[sessionState.map].nome}`
+            : `RODADA ${s.roundNum} · ${MAPS[sessionState.map].nome} · v0.16`}
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}
@@ -205,59 +217,84 @@ export default function Hud() {
         </View>
       </View>
 
-      {/* ==== topo centro: placar + fase + timer ==== */}
-      <View style={styles.tc}>
-        <View style={styles.scoreRow}>
-          <View style={[styles.scoreSide, styles.coroSide]}>
-            <Text style={styles.scoreName}>CORO</Text>
-            <Text style={styles.scoreNum}>{s.coro}</Text>
+      {/* ==== topo centro: placar + fase + timer (partida) · chip TREINO ==== */}
+      {s.training ? (
+        <View style={styles.tc}>
+          <View style={styles.trainChip}>
+            <Text style={styles.trainChipTxt}>CAMPO DE PROVAS · TREINO LIVRE</Text>
           </View>
-          <Text style={styles.scoreDash}>×</Text>
-          <View style={[styles.scoreSide, styles.diracSide]}>
-            <Text style={styles.scoreName}>DIRAC</Text>
-            <Text style={styles.scoreNum}>{s.dirac}</Text>
-          </View>
-        </View>
-        <Text style={styles.phaseLabel}>
-          {s.phase === 'live' && s.planted ? 'DIAPASÃO ATIVO' : PHASE_LABEL[s.phase]}
-        </Text>
-        {s.phase !== 'over' ? (
-          <Text
-            style={[
-              styles.timer,
-              s.phase === 'live' && s.planted ? styles.timerPulse : null,
-              timerCritical && !s.planted ? styles.timerCrit : null,
-            ]}
-          >
-            {mmss(s.secLeft)}
-          </Text>
-        ) : null}
-        {/* jogador caído: o esquadrão luta por ele (Etapa 12) */}
-        {s.phase === 'live' && s.spectating ? (
-          <Text style={styles.specBanner}>
-            {s.carrierName
-              ? `NEUTRALIZADO — ${s.carrierName} LEVA O DIAPASÃO`
-              : 'NEUTRALIZADO — SEU ESQUADRÃO LUTA'}
-          </Text>
-        ) : null}
-        {/* vitais: hp + escudo */}
-        <View style={styles.vitals}>
-          <View style={styles.hpBg}>
-            <View style={[styles.hpFill, { width: `${(s.hp / PLAYER_HP) * 100}%` }]} />
-          </View>
-          {shieldTotal > 0 ? (
-            <View style={styles.shBg}>
-              <View
-                style={[
-                  styles.shFill,
-                  s.shieldBonus > 0 && styles.shBonus,
-                  { width: `${Math.min(100, (shieldTotal / 100) * 100)}%` },
-                ]}
-              />
+          {/* vitais: hp + escudo */}
+          <View style={styles.vitals}>
+            <View style={styles.hpBg}>
+              <View style={[styles.hpFill, { width: `${(s.hp / PLAYER_HP) * 100}%` }]} />
             </View>
-          ) : null}
+            {shieldTotal > 0 ? (
+              <View style={styles.shBg}>
+                <View
+                  style={[
+                    styles.shFill,
+                    s.shieldBonus > 0 && styles.shBonus,
+                    { width: `${Math.min(100, (shieldTotal / 100) * 100)}%` },
+                  ]}
+                />
+              </View>
+            ) : null}
+          </View>
         </View>
-      </View>
+      ) : (
+        <View style={styles.tc}>
+          <View style={styles.scoreRow}>
+            <View style={[styles.scoreSide, styles.coroSide]}>
+              <Text style={styles.scoreName}>CORO</Text>
+              <Text style={styles.scoreNum}>{s.coro}</Text>
+            </View>
+            <Text style={styles.scoreDash}>×</Text>
+            <View style={[styles.scoreSide, styles.diracSide]}>
+              <Text style={styles.scoreName}>DIRAC</Text>
+              <Text style={styles.scoreNum}>{s.dirac}</Text>
+            </View>
+          </View>
+          <Text style={styles.phaseLabel}>
+            {s.phase === 'live' && s.planted ? 'DIAPASÃO ATIVO' : PHASE_LABEL[s.phase]}
+          </Text>
+          {s.phase !== 'over' ? (
+            <Text
+              style={[
+                styles.timer,
+                s.phase === 'live' && s.planted ? styles.timerPulse : null,
+                timerCritical && !s.planted ? styles.timerCrit : null,
+              ]}
+            >
+              {mmss(s.secLeft)}
+            </Text>
+          ) : null}
+          {/* jogador caído: o esquadrão luta por ele (Etapa 12) */}
+          {s.phase === 'live' && s.spectating ? (
+            <Text style={styles.specBanner}>
+              {s.carrierName
+                ? `NEUTRALIZADO — ${s.carrierName} LEVA O DIAPASÃO`
+                : 'NEUTRALIZADO — SEU ESQUADRÃO LUTA'}
+            </Text>
+          ) : null}
+          {/* vitais: hp + escudo */}
+          <View style={styles.vitals}>
+            <View style={styles.hpBg}>
+              <View style={[styles.hpFill, { width: `${(s.hp / PLAYER_HP) * 100}%` }]} />
+            </View>
+            {shieldTotal > 0 ? (
+              <View style={styles.shBg}>
+                <View
+                  style={[
+                    styles.shFill,
+                    s.shieldBonus > 0 && styles.shBonus,
+                    { width: `${Math.min(100, (shieldTotal / 100) * 100)}%` },
+                  ]}
+                />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      )}
 
       {/* topo direito: leitura + ameaça + FPS */}
       <View style={styles.tr}>
@@ -289,6 +326,14 @@ export default function Hud() {
       </View>
 
       {/* ==== dicas contextuais ==== */}
+      {s.training && !s.trainMenu ? (
+        <View style={styles.bc}>
+          <Text style={styles.hintTeal}>campo de provas: sem rodadas, dB infinito</Text>
+          <Text style={styles.hintDim}>
+            ARSENAL abre a loja a qualquer momento · os DIRAC patrulham de verdade
+          </Text>
+        </View>
+      ) : null}
       {s.phase === 'buy' ? (
         <View style={styles.bc}>
           <Text style={styles.hint}>compre equipamento e confirme PRONTO</Text>
@@ -297,7 +342,7 @@ export default function Hud() {
           </Text>
         </View>
       ) : null}
-      {s.phase === 'live' && !s.planted ? (
+      {s.phase === 'live' && !s.planted && !s.training ? (
         <View style={styles.bc}>
           <Text style={styles.hint}>
             {s.carrying
@@ -309,7 +354,7 @@ export default function Hud() {
           </Text>
         </View>
       ) : null}
-      {s.phase === 'live' && s.planted ? (
+      {s.phase === 'live' && s.planted && !s.training ? (
         <View style={styles.bc}>
           <Text style={styles.hintTeal}>
             defenda o site — os DIRAC vão tentar silenciar o Diapasão
@@ -408,8 +453,33 @@ export default function Hud() {
       {/* ==== camada única de entrada (Etapa 10: multi-touch real) ==== */}
       <InputLayer active={!modalOpen} />
 
+      {/* ==== CAMPO DE PROVAS: barra ARSENAL / SAIR (Etapa 16) — acima da
+          camada de entrada, ao lado dos controles; Pressables de verdade ==== */}
+      {s.training && !s.trainMenu && showCombat ? (
+        <View style={styles.trainBar} pointerEvents="box-none">
+          <Pressable
+            style={({ pressed }) => [styles.trainBtn, pressed && styles.trainBtnP]}
+            onPress={() => {
+              SFX.play('ui', 0.7);
+              uiState.trainMenuOpen = true;
+            }}
+          >
+            <Text style={styles.trainBtnTxt}>ARSENAL ▸</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.trainBtn, styles.trainExit, pressed && styles.trainBtnP]}
+            onPress={() => {
+              SFX.play('ui', 0.7);
+              inputState.agentSelectQueued = true; // volta ao hub
+            }}
+          >
+            <Text style={[styles.trainBtnTxt, { color: CSS.MAGENTA }]}>⌂ SAIR</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* ==== loja / fim de partida (acima da camada de entrada) ==== */}
-      {s.phase === 'buy' ? <BuyMenu /> : null}
+      {s.phase === 'buy' || (s.training && s.trainMenu) ? <BuyMenu /> : null}
       {s.phase === 'over' ? <MatchOver /> : null}
 
       {/* dano recebido (sempre montado; invisível quando parado) */}
@@ -426,7 +496,10 @@ const styles = StyleSheet.create({
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   tl: { position: 'absolute', top: 14, left: 22 },
   tc: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
-  tr: { position: 'absolute', top: 14, right: 22, alignItems: 'flex-end' },
+  // Etapa 16: right 118 — o bloco não pode invadir a zona dos botões de
+  // TRAÇO (right 34 + 72 = x738 em tela de 844): "AMEAÇA"/"FPS" desenhavam
+  // por trás do botão de cima desde a Etapa 8; agora ficam à esquerda dele
+  tr: { position: 'absolute', top: 14, right: 118, alignItems: 'flex-end' },
   bc: { position: 'absolute', bottom: 18, left: 0, right: 0, alignItems: 'center' },
   title: {
     fontFamily: MONO,
@@ -673,4 +746,46 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   reloadBarFill: { height: '100%', backgroundColor: CSS.MAGENTA },
+
+  // ---- CAMPO DE PROVAS (Etapa 16) ----
+  trainChip: {
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(45,226,198,0.55)',
+    backgroundColor: 'rgba(45,226,198,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+  },
+  trainChipTxt: {
+    fontFamily: MONO,
+    fontSize: 9,
+    letterSpacing: 3,
+    color: CSS.TEAL,
+  },
+  trainBar: {
+    position: 'absolute',
+    top: 12,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  trainBtn: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(45,226,198,0.65)',
+    backgroundColor: 'rgba(9,13,18,0.88)',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  trainExit: { borderColor: 'rgba(255,61,142,0.6)' },
+  trainBtnP: { backgroundColor: 'rgba(45,226,198,0.30)' },
+  trainBtnTxt: {
+    fontFamily: MONO,
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 2.5,
+    color: CSS.TEAL,
+  },
 });

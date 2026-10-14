@@ -17,7 +17,7 @@
 // escudo do jogador, emite o evento de HUD e encerra a rodada se necessário).
 
 import * as THREE from 'three';
-import { BOTS, COLORS, DEFUSE, DIFFICULTY } from '../config/constants';
+import { BOTS, COLORS, DEFUSE, DIFFICULTY, TRACOS } from '../config/constants';
 import type { MapDef } from '../config/maps';
 import { StaticBuckets } from '../core/merge';
 import { hudEvents } from '../core/state';
@@ -72,6 +72,7 @@ interface Bot {
   soundX: number; // de onde veio o último tiro ouvido
   soundZ: number;
   pingUntil: number; // minimapa aceso até aqui (atirou/levou dano, Etapa 13)
+  slowUntil: number; // RITARDANDO (VIBRATO, Etapa 16): campo de lentidão
 }
 
 export interface BotCtx {
@@ -303,6 +304,7 @@ export class BotSquad {
         soundX: 0,
         soundZ: 0,
         pingUntil: 0,
+        slowUntil: 0,
       });
     });
 
@@ -455,6 +457,26 @@ export class BotSquad {
     return hitCount;
   }
 
+  /**
+   * RITARDANDO (Traço do VIBRATO, Etapa 16): campo de lentidão — DIRACs
+   * no raio andam bem mais devagar e demoram mais para reagir enquanto
+   * o campo segura. Não precisa de linha de visão: é ressonância no ar.
+   * O visor acende violeta enquanto o campo atua (legibilidade).
+   */
+  slowNear(playerPos: THREE.Vector3, range: number, until: number, reactMs: number) {
+    const now = performance.now();
+    for (const b of this.bots) {
+      if (b.phase === 'dying' || b.phase === 'dead') continue;
+      const d = Math.hypot(
+        b.group.position.x - playerPos.x,
+        b.group.position.z - playerPos.z
+      );
+      if (d > range) continue;
+      b.slowUntil = Math.max(b.slowUntil, until);
+      if (b.reactAt > now) b.reactAt += reactMs; // ainda processando o alvo
+    }
+  }
+
   /** Tiro CORO ecoou (jogador ou aliado) — bots no alcance entram em alerta. */
   heardShot(pos: THREE.Vector3, now: number) {
     for (const b of this.bots) {
@@ -500,6 +522,7 @@ export class BotSquad {
       b.soundX = 0;
       b.soundZ = 0;
       b.pingUntil = 0;
+      b.slowUntil = 0;
       b.group.visible = true;
       b.group.rotation.set(0, 0, 0);
       b.group.position.set(b.route[0][0], 0, b.route[0][1]);
@@ -540,10 +563,16 @@ export class BotSquad {
       }
 
       // CENZURA: visor branco piscando enquanto cego
+      // RITARDANDO (Etapa 16): visor violeta enquanto o campo segura
       const blinded = now < b.blindUntil;
+      const slowed = now < b.slowUntil;
+      const SLOW_MUL = TRACOS.RITARDANDO_MUL;
       if (blinded) {
         const k = 0.5 + Math.abs(Math.sin(now / 45)) * 0.5;
         b.visorMat.color.setRGB(k, k, k);
+      } else if (slowed) {
+        const k = 0.72 + Math.abs(Math.sin(now / 130)) * 0.28;
+        b.visorMat.color.setRGB(0.71 * k, 0.55 * k, 1.0 * k);
       } else if (b.visorMat.color.r !== COLORS.MAGENTA / 16777216) {
         b.visorMat.color.setHex(COLORS.MAGENTA);
       }
@@ -632,7 +661,7 @@ export class BotSquad {
           if (wd < 0.35) {
             b.wp = (b.wp + 1) % b.route.length;
           } else {
-            const step = BOTS.PATROL_SPEED * dt;
+            const step = BOTS.PATROL_SPEED * (slowed ? SLOW_MUL : 1) * dt;
             const nx = b.group.position.x + (wdx / wd) * step;
             const nz = b.group.position.z + (wdz / wd) * step;
             if (!ctx.blocked(nx, nz)) {
@@ -696,7 +725,7 @@ export class BotSquad {
             b.strafeT = now + 800 + Math.random() * 900;
             b.strafeDir = Math.random() < 0.5 ? -1 : 1;
           }
-          const step = BOTS.STRAFE_SPEED * dt;
+          const step = BOTS.STRAFE_SPEED * (slowed ? SLOW_MUL : 1) * dt;
           const inv = 1 / (dist || 1);
           const sx = (-dz * inv) * b.strafeDir;
           const sz = (dx * inv) * b.strafeDir;
@@ -758,7 +787,7 @@ export class BotSquad {
           }
 
           // anda com deslize em parede (eixo a eixo, como o jogador)
-          const step = this.retakeSpeed() * dt;
+          const step = this.retakeSpeed() * (slowed ? SLOW_MUL : 1) * dt;
           const nx = b.group.position.x + (wdx / (wd || 1)) * step;
           const nz = b.group.position.z + (wdz / (wd || 1)) * step;
           let movedOk = false;

@@ -14,6 +14,8 @@ import { settings } from '../core/state';
 export type SfxKey =
   | 'fire_staccato'
   | 'fire_legato'
+  | 'fire_gli'
+  | 'pump'
   | 'fire_bot'
   | 'reload_click'
   | 'reload_slam'
@@ -37,6 +39,8 @@ export type SfxKey =
 const SRC: Record<SfxKey, number> = {
   fire_staccato: require('../../assets/sfx/fire_staccato.wav'),
   fire_legato: require('../../assets/sfx/fire_legato.wav'),
+  fire_gli: require('../../assets/sfx/fire_gli.wav'),
+  pump: require('../../assets/sfx/pump.wav'),
   fire_bot: require('../../assets/sfx/fire_bot.wav'),
   reload_click: require('../../assets/sfx/reload_click.wav'),
   reload_slam: require('../../assets/sfx/reload_slam.wav'),
@@ -62,6 +66,8 @@ const SRC: Record<SfxKey, number> = {
 const POOL: Partial<Record<SfxKey, number>> = {
   fire_staccato: 4,
   fire_legato: 5,
+  fire_gli: 3,
+  pump: 2,
   fire_bot: 4,
   hit: 3,
   headshot: 3,

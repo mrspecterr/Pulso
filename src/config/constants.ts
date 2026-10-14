@@ -66,8 +66,8 @@ export const TRACER_LENGTH = 60; // alcance máximo do rastro (m)
 export const MUZZLE_MS = 45; // clarão da boca
 export const IMPACT_MS = 70; // faísca no ponto de impacto
 
-// --- arsenal (Etapa 5: economia em dB) ---
-export type WeaponId = 'STACCATO' | 'LEGATO';
+// --- arsenal (Etapa 5: economia em dB · Etapa 16: GLISSANDO) ---
+export type WeaponId = 'STACCATO' | 'GLISSANDO' | 'LEGATO';
 
 export interface WeaponSpec {
   name: string;
@@ -79,6 +79,10 @@ export interface WeaponSpec {
   BURST_RESET_MS: number;
   price: number; // em dB (0 = grátis)
   desc: string;
+  /** balins por disparo (1 = bala única). GLISSANDO: 8. */
+  PELLETS: number;
+  /** dispersão do cone de balins (graus de meia-ângulo). 0 = sem dispersão. */
+  SPREAD_DEG: number;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
@@ -92,6 +96,21 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     BURST_RESET_MS: 220,
     price: 0,
     desc: 'pistola de serviço',
+    PELLETS: 1,
+    SPREAD_DEG: 0,
+  },
+  GLISSANDO: {
+    name: 'GLISSANDO',
+    MAG: 6,
+    CADENCE_MS: 850, // corredera: um tiro por bombeamento
+    RELOAD_MS: 3000,
+    DMG_BODY: 9, // por balim — 8 no corpo a queima-roupa = 72
+    DMG_HEAD: 16, // 8 na cabeça = abate à queima-roupa
+    BURST_RESET_MS: 700,
+    price: 2100,
+    desc: 'escopeta de corredera',
+    PELLETS: 8,
+    SPREAD_DEG: 2.8, // cone de dispersão (fecha a partir do 3º tiro)
   },
   LEGATO: {
     name: 'LEGATO',
@@ -103,6 +122,8 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     BURST_RESET_MS: 250,
     price: 2900,
     desc: 'fuzil de assalto',
+    PELLETS: 1,
+    SPREAD_DEG: 0,
   },
 };
 
@@ -220,10 +241,29 @@ export const TRACOS = {
   ONDA_RANGE: 6.5, // raio da onda de choque (m)
   ONDA_DMG: 55,
   ONDA_PUSH: 3.5, // empurrão nos operadores (m)
+  // VIBRATO — regente (Etapa 16)
+  CADENCIA_USES: 1,
+  CADENCIA_HEAL: 40, // vida devolvida ao longo do canal
+  CADENCIA_MS: 3500, // duração da reafinação (jogador regenera)
+  CADENCIA_REGEN: 11.5, // vida por segundo no jogador (≈40 em 3,5s)
+  CADENCIA_ALLY_RANGE: 9, // aliados neste raio também são reafinados
+  RITARDANDO_USES: 1,
+  RITARDANDO_RANGE: 9, // raio do campo de lentidão (m)
+  RITARDANDO_MS: 4500, // duração da lentidão
+  RITARDANDO_MUL: 0.45, // multiplicador de velocidade dos DIRACs
+  RITARDANDO_REACT_MS: 350, // reação extra enquanto o campo segura
 } as const;
 
-// --- agentes jogáveis (Etapa 8) ---
-export type TracoKey = 'cenzura' | 'barreira' | 'impulso' | 'sonar' | 'couraca' | 'onda';
+// --- agentes jogáveis (Etapa 8 · VIBRADO Etapa 16) ---
+export type TracoKey =
+  | 'cenzura'
+  | 'barreira'
+  | 'impulso'
+  | 'sonar'
+  | 'couraca'
+  | 'onda'
+  | 'cadencia'
+  | 'ritardando';
 
 export interface TracoSpec {
   key: TracoKey;
@@ -234,7 +274,7 @@ export interface TracoSpec {
   desc: string; // uma linha, linguagem de campo
 }
 
-export type AgentId = 'MUDO' | 'ECO' | 'GRAVE';
+export type AgentId = 'MUDO' | 'ECO' | 'GRAVE' | 'VIBRATO';
 
 export interface AgentSpec {
   nome: AgentId;
@@ -325,6 +365,32 @@ export const AGENTS: Record<AgentId, AgentSpec> = {
       },
     ],
   },
+  VIBRATO: {
+    nome: 'VIBRATO',
+    funcao: 'REGENTE',
+    cor: 0xb48cff,
+    corCss: '#B48CFF',
+    bio: 'regente de campo do CORO; reafina vozes gastas e desacelera o que vem pesado',
+    speedMul: 1.02,
+    tracos: [
+      {
+        key: 'cadencia',
+        label: 'CADÊNCIA',
+        glyph: '♪',
+        uses: TRACOS.CADENCIA_USES,
+        cdMs: 0,
+        desc: 'reafina o esquadrão: +40 de vida ao longo de 3,5s',
+      },
+      {
+        key: 'ritardando',
+        label: 'RITARDANDO',
+        glyph: '◐',
+        uses: TRACOS.RITARDANDO_USES,
+        cdMs: 0,
+        desc: 'campo que desacelera DIRACs próximos por 4,5s',
+      },
+    ],
+  },
 };
 
 // --- silenciar o Diapasão (retake DIRAC, Etapa 7) ---
@@ -369,3 +435,8 @@ export const QUALITY: Record<QualityId, QualitySpec> = {
 } as const;
 
 export const QUALITY_ORDER: QualityId[] = ['FLUIDO', 'MEDIO', 'NITIDO'];
+
+// --- CAMPO DE PROVAS (Etapa 16 — modo treino) ---
+export const TRAINING = {
+  RESPAWN_MS: 1500, // caído → volta ao spawn com kit recarregado
+} as const;

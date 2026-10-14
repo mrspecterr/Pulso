@@ -13,6 +13,8 @@ const TRACO_COLOR: Record<TracoKey, string> = {
   sonar: '#9FD8E8',
   couraca: '#FFB454',
   onda: CSS.MAGENTA,
+  cadencia: '#B48CFF',
+  ritardando: '#8FB7FF',
 };
 
 interface Snap {

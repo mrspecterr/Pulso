@@ -4,7 +4,7 @@
 // AgentSelect com a mesma linguagem do hub. O mapa ficou no hub — aqui é
 // gente.
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AGENTS, CSS, type AgentId } from '../config/constants';
 import { ART, TITLE_BG } from './art';
@@ -13,7 +13,15 @@ import { getProfile, saveProfile } from './profile';
 import { sessionState } from '../core/state';
 import { SFX } from '../game/Audio';
 
-const ORDER: AgentId[] = ['MUDO', 'ECO', 'GRAVE'];
+// Etapa 16: VIBRATO entra na galeria (4 operadores)
+const ORDER: AgentId[] = ['MUDO', 'ECO', 'GRAVE', 'VIBRATO'];
+
+const OPEN_AS: Record<AgentId, string> = {
+  MUDO: 'controle',
+  ECO: 'infiltração',
+  GRAVE: 'linha de frente',
+  VIBRATO: 'regência do esquadrão',
+};
 
 export default function AgentsScreen({ onBack }: { onBack: () => void }) {
   const current = getProfile().agent;
@@ -70,9 +78,11 @@ export default function AgentsScreen({ onBack }: { onBack: () => void }) {
         </FadeSlide>
       </View>
 
-      {/* ---- esquerda: cards dos operadores + dossiê (fluxo — nunca sobrepõe) ---- */}
+      {/* ---- esquerda: cards dos operadores + dossiê (fluxo rolável — com
+           4 operadores o conjunto pode passar da altura útil da tela) ---- */}
       <View style={ag.leftCol}>
-        {ORDER.map((id, i) => {
+        <ScrollView contentContainerStyle={ag.leftFlow} showsVerticalScrollIndicator={false}>
+          {ORDER.map((id, i) => {
           const g = AGENTS[id];
           const active = sel === id;
           return (
@@ -99,7 +109,7 @@ export default function AgentsScreen({ onBack }: { onBack: () => void }) {
           );
         })}
 
-        <FadeSlide delay={420}>
+        <FadeSlide delay={500}>
           <View style={[ag.dossier, { borderColor: A.corCss + '66' }]}>
             <Text style={[ag.bioName, { color: A.corCss }]}>{A.nome} · {A.funcao}</Text>
             <Text style={ag.bio}>{A.bio}</Text>
@@ -117,10 +127,11 @@ export default function AgentsScreen({ onBack }: { onBack: () => void }) {
 
             <Text style={ag.speed}>
               VELOCIDADE {A.speedMul === 1 ? 'PADRÃO' : `${A.speedMul > 1 ? '+' : ''}${Math.round((A.speedMul - 1) * 100)}%`}
-              {'  ·  '}abre a partida como {A.nome === 'MUDO' ? 'controle' : A.nome === 'ECO' ? 'infiltração' : 'linha de frente'}
+              {'  ·  '}abre a partida como {OPEN_AS[A.nome]}
             </Text>
           </View>
         </FadeSlide>
+        </ScrollView>
       </View>
 
       {/* ---- confirmar, sobre a arte ---- */}
@@ -181,6 +192,7 @@ const ag = StyleSheet.create({
     bottom: 12,
     width: 300,
   },
+  leftFlow: { paddingBottom: 4 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

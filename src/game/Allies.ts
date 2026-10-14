@@ -356,6 +356,29 @@ export class AllySquad {
     return { killed: false };
   }
 
+  /**
+   * CADÊNCIA (Traço do VIBRATO, Etapa 16): reafina aliados vivos num raio —
+   * devolve vida (sem passar de 100) e acende o brilho por um instante.
+   * Retorna quantos foram alcançados pelo pulso.
+   */
+  healNear(playerPos: THREE.Vector3, range: number, amount: number): number {
+    let healed = 0;
+    for (const a of this.allies) {
+      if (a.phase === 'dying' || a.phase === 'dead') continue;
+      if (a.hp >= ALLIES.HP) continue; // em plena forma não precisa
+      const d = Math.hypot(
+        a.group.position.x - playerPos.x,
+        a.group.position.z - playerPos.z
+      );
+      if (d > range) continue;
+      a.hp = Math.min(ALLIES.HP, a.hp + amount);
+      a.flash = Math.max(a.flash, 0.6); // brilho suave de reafinação
+      this.updateBar(a);
+      healed++;
+    }
+    return healed;
+  }
+
   /** Um passo com deslize de parede (eixo a eixo). Retorna true se moveu. */
   private step(a: Ally, tx: number, tz: number, speed: number, dt: number, ctx: AllyCtx): boolean {
     const dx = tx - a.group.position.x;

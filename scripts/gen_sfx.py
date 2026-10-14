@@ -361,11 +361,32 @@ def hum_loop(dur=8.0):
 
 sfx_hum = hum_loop()
 
+# ------------------------------------------- GLISSANDO (Etapa 16) -------
+# Gerados por ÚLTIMO de propósito: o script é determinístico (seed fixa) e
+# inserir sons no meio do fluxo deslocaria o estado do RNG e mudaria todos
+# os WAVs existentes. Novos sons nascem sempre aqui embaixo.
+
+sfx_fire_gli = gun_shot(68, 0.27, 1600, 240, tail=1)         # escopeta: pesada, oca, eco longo
+# reforço de sub-grave só da escopeta (o calibre estremece o peito)
+sfx_fire_gli = normalize(mix(
+    gain(sfx_fire_gli, 0.9),
+    gain(apply_env(sine(52, 0.22), env_exp(0.22, 6)), 0.5),
+))
+
+# corredera: puxa (desliza) e solta (bate na câmara)
+sfx_pump = normalize(mix(
+    gain(mech_click(0.055, 480, 1.15), 0.95),                # desliza p/ trás
+    silence(0.10) + gain(mech_click(0.05, 900, 1.25), 1.0),  # trava e volta
+    silence(0.155) + gain(mech_click(0.03, 1350, 1.0), 0.5), # assento final
+))
+
 # ---------------------------------------------------------------- salva --
 
 print('Gerando SFX do PULSO em', os.path.normpath(OUT))
 write('fire_staccato.wav', sfx_fire_staccato)
 write('fire_legato.wav', sfx_fire_legato)
+write('fire_gli.wav', sfx_fire_gli)
+write('pump.wav', sfx_pump)
 write('fire_bot.wav', sfx_fire_bot)
 write('reload_click.wav', sfx_reload_click)
 write('reload_slam.wav', sfx_reload_slam)
@@ -385,4 +406,4 @@ write('buy.wav', sfx_buy)
 write('ui.wav', sfx_ui)
 write('traco.wav', sfx_traco)
 write('hum.wav', sfx_hum)
-print('OK — 21 arquivos')
+print('OK — 23 arquivos')

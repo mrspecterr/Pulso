@@ -17,10 +17,12 @@ const MAP_ORDER: MapId[] = ['SUBSOLO', 'PALCO'];
 
 export default function HomeScreen({
   onPlay,
+  onTraining,
   onAgents,
   onSettings,
 }: {
   onPlay: () => void;
+  onTraining: () => void;
   onAgents: () => void;
   onSettings: () => void;
 }) {
@@ -148,6 +150,17 @@ export default function HomeScreen({
             </Pressable>
           </Pulsing>
         </FadeSlide>
+
+        {/* Etapa 16: campo de provas — treino livre ao lado da partida real */}
+        <FadeSlide delay={620}>
+          <Pressable
+            style={({ pressed }) => [hs.trainBtn, pressed && hs.trainBtnP]}
+            onPress={() => { SFX.play('ui', 0.6); onTraining(); }}
+          >
+            <Text style={hs.trainTxt}>▸ CAMPO DE PROVAS</Text>
+            <Text style={hs.trainSub}>TREINO LIVRE · dB INFINITO · ARSENAL ABERTO</Text>
+          </Pressable>
+        </FadeSlide>
       </View>
 
       {/* ---- rodapé: temporada · carreira ---- */}
@@ -156,7 +169,7 @@ export default function HomeScreen({
         <Text style={hs.footCareer}>
           {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
         </Text>
-        <Text style={hs.footVer}>v0.15 · mrspecterr/Pulso</Text>
+        <Text style={hs.footVer}>v0.16 · mrspecterr/Pulso</Text>
       </View>
 
       {/* ---- briefing: como jogar ---- */}
@@ -322,6 +335,21 @@ const hs = StyleSheet.create({
     marginRight: -12,
   },
   playSub: { fontFamily: MONO, fontSize: 8, letterSpacing: 3, color: '#BFE9DF', marginTop: 3 },
+
+  // -- campo de provas (Etapa 16) --
+  trainBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(122,139,153,0.45)',
+    backgroundColor: 'rgba(11,15,20,0.66)',
+    paddingHorizontal: 30,
+    paddingVertical: 6,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  trainBtnP: { borderColor: 'rgba(45,226,198,0.55)', backgroundColor: 'rgba(45,226,198,0.12)' },
+  trainTxt: { fontFamily: MONO, fontSize: 11, fontWeight: 'bold', letterSpacing: 4, color: '#B9D8CE' },
+  trainSub: { fontFamily: MONO, fontSize: 7, letterSpacing: 2, color: CSS.TEXT_DIM, marginTop: 2 },
 
   // -- rodapé --
   footer: {

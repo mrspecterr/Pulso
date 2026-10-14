@@ -27,8 +27,16 @@ export class WeaponSystem {
   readonly root = new THREE.Group();
   private rifle = new THREE.Group();
   private pistol = new THREE.Group();
+  private shotgun = new THREE.Group();
   private muzzleRifle = new THREE.Object3D();
   private muzzlePistol = new THREE.Object3D();
+  private muzzleShotgun = new THREE.Object3D();
+  // corredera da GLISSANDO: peça MÓVEL (desliza p/ trás e volta após o tiro)
+  private pumpHand = new THREE.Mesh(
+    new THREE.BoxGeometry(0.075, 0.064, 0.17),
+    new THREE.MeshStandardMaterial({ color: 0x2c333c, roughness: 0.85, metalness: 0.1 })
+  );
+  private pumpT = 0; // contagem regressiva da animação de bombeamento (s)
   private flash: THREE.Mesh;
   private flashT = 0;
   private recoil = 0;
@@ -131,11 +139,53 @@ export class WeaponSystem {
     this.muzzlePistol.position.set(0, 0.028, -0.24);
     this.pistol.add(this.muzzlePistol);
 
+    // ---------------- ESCOPETA GLISSANDO (Etapa 16) ----------------
+    const shotParts = new StaticBuckets(this.shotgun);
+    // receiver robusto + trilho
+    box(shotParts, 0.082, 0.1, 0.3, 0, 0, -0.04, gunMetal);
+    box(shotParts, 0.05, 0.02, 0.34, 0, 0.06, -0.1, gunMetal);
+    // cano longo + anel do choke
+    const shotBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.019, 0.019, 0.46, 10),
+      accent
+    );
+    shotBarrel.rotation.x = Math.PI / 2;
+    shotBarrel.position.set(0, 0.03, -0.6);
+    shotParts.add(shotBarrel);
+    box(shotParts, 0.045, 0.045, 0.05, 0, 0.03, -0.84, gunMetal);
+    // tubo de munição sob o cano
+    const tube = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.014, 0.38, 10),
+      gunMetal
+    );
+    tube.rotation.x = Math.PI / 2;
+    tube.position.set(0, -0.014, -0.56);
+    shotParts.add(tube);
+    // massa de mira (bead) + alça em anel fantasma
+    box(shotParts, 0.01, 0.014, 0.012, 0, 0.056, -0.8, dot);
+    box(shotParts, 0.03, 0.03, 0.014, 0, 0.062, -0.2, gunMetal);
+    // coronha de madeira pintada + punho
+    box(shotParts, 0.055, 0.095, 0.2, 0, -0.012, 0.2, polymer);
+    box(shotParts, 0.062, 0.13, 0.032, 0, -0.03, 0.31, polymer);
+    box(shotParts, 0.05, 0.12, 0.06, 0, -0.09, 0.05, polymer, -0.3);
+    // porta de carga + extração (painéis de destaque)
+    box(shotParts, 0.02, 0.03, 0.09, 0.042, -0.005, -0.02, accent);
+    shotParts.build();
+    // corredera: peça viva sobre o tubo (não fundida — ela se move)
+    this.pumpHand.position.set(0, -0.014, -0.5);
+    this.shotgun.add(this.pumpHand);
+    this.muzzleShotgun.position.set(0, 0.03, -0.87);
+    this.shotgun.add(this.muzzleShotgun);
+
     this.rifle.traverse((o) => {
       o.castShadow = false;
       o.receiveShadow = false;
     });
     this.pistol.traverse((o) => {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    });
+    this.shotgun.traverse((o) => {
       o.castShadow = false;
       o.receiveShadow = false;
     });
@@ -156,7 +206,8 @@ export class WeaponSystem {
 
     this.rifle.visible = true;
     this.pistol.visible = false;
-    this.root.add(this.rifle, this.pistol);
+    this.shotgun.visible = false;
+    this.root.add(this.rifle, this.pistol, this.shotgun);
     this.root.position.copy(BASE_POS);
     this.root.rotation.y = -0.07;
     camera.add(this.root);
@@ -182,17 +233,22 @@ export class WeaponSystem {
     this.cur = id;
     this.rifle.visible = id === 'LEGATO';
     this.pistol.visible = id === 'STACCATO';
+    this.shotgun.visible = id === 'GLISSANDO';
     this.recoil = 0.55; // "sacudida" de troca
     this.flashT = 0;
+    this.pumpT = 0; // trocou de arma: corredera em repouso
   }
 
-  /** Chamado a cada tiro: recuo + clarão + cápsula ejetada. */
+  /** Chamado a cada tiro: recuo + clarão + cápsula ejetada (+ corredera). */
   onFire() {
-    this.recoil = Math.min(1, this.recoil + 0.55);
+    this.recoil = Math.min(1, this.recoil + (this.cur === 'GLISSANDO' ? 0.95 : 0.55));
     this.flashT = 0.05;
     this.flash.rotation.z = Math.random() * Math.PI;
     const s = 1.0 + Math.random() * 0.6;
-    this.flash.scale.setScalar(this.cur === 'LEGATO' ? s : s * 0.75);
+    this.flash.scale.setScalar(
+      this.cur === 'LEGATO' ? s : this.cur === 'GLISSANDO' ? s * 1.4 : s * 0.75
+    );
+    if (this.cur === 'GLISSANDO') this.pumpT = 0.44; // bombeia depois do tiro
     this.ejectShell();
   }
 
@@ -223,7 +279,12 @@ export class WeaponSystem {
 
   /** Posição mundial da boca da arma (para tracer/luz). */
   muzzleWorld(out: THREE.Vector3): THREE.Vector3 {
-    const m = this.cur === 'LEGATO' ? this.muzzleRifle : this.muzzlePistol;
+    const m =
+      this.cur === 'LEGATO'
+        ? this.muzzleRifle
+        : this.cur === 'GLISSANDO'
+          ? this.muzzleShotgun
+          : this.muzzlePistol;
     return m.getWorldPosition(out);
   }
 
@@ -252,6 +313,19 @@ export class WeaponSystem {
     // recuo decai exponencial
     this.recoil *= Math.exp(-dt * 13);
 
+    // corredera da GLISSANDO: puxa p/ trás (40% do tempo) e retorna (60%)
+    if (this.pumpT > 0) {
+      this.pumpT = Math.max(0, this.pumpT - dt);
+      const p = 1 - this.pumpT / 0.44; // 0..1 do ciclo
+      const k =
+        p < 0.4
+          ? Math.sin((p / 0.4) * (Math.PI / 2)) // acelera p/ trás
+          : 1 - (p - 0.4) / 0.6; // desliza de volta
+      this.pumpHand.position.z = -0.5 + k * 0.085;
+    } else {
+      this.pumpHand.position.z = -0.5;
+    }
+
     // animação de recarga: mergulha, rola e volta
     let dipY = 0;
     let roll = 0;
@@ -276,7 +350,12 @@ export class WeaponSystem {
     );
 
     // clarão preso à boca da arma ativa
-    const m = this.cur === 'LEGATO' ? this.muzzleRifle : this.muzzlePistol;
+    const m =
+      this.cur === 'LEGATO'
+        ? this.muzzleRifle
+        : this.cur === 'GLISSANDO'
+          ? this.muzzleShotgun
+          : this.muzzlePistol;
     const mp = this.flash.position;
     mp.set(m.position.x, m.position.y, m.position.z - 0.05);
     if (this.flashT > 0) {

@@ -22,18 +22,52 @@ interface Hooks {
   onPlanted: (site: 'A' | 'B') => void;
   /** ainda há alguém do CORO em campo? (jogador OU aliados — Etapa 12) */
   coroAlive: () => boolean;
+  /** campo de provas (Etapa 16): sem fases, sem placar, sem fim de partida */
+  training?: boolean;
 }
 
 export class RoundManager {
   private hooks: Hooks;
   private lastPlantTick = 0; // Etapa 11: cadência dos pings do canal de plantio
+  private training: boolean; // Etapa 16: campo de provas
 
   constructor(hooks: Hooks) {
     this.hooks = hooks;
+    this.training = hooks.training ?? false;
     this.resetMatch();
   }
 
   resetMatch() {
+    if (this.training) {
+      // CAMPO DE PROVAS: live eterno, sem Diapasão, sem economia (o dB é
+      // fixado em ECONOMY.MAX_DB pelo Game — o arsenal nunca fecha)
+      roundState.roundNum = 1;
+      roundState.scoreCORO = 0;
+      roundState.scoreDIRAC = 0;
+      roundState.dB = ECONOMY.MAX_DB;
+      roundState.weapon = 'STACCATO';
+      roundState.shield = 0;
+      playerVitals.hp = 100;
+      playerVitals.shield = 0;
+      playerVitals.shieldBonus = 0;
+      roundState.matchWinner = null;
+      roundState.outcome = null;
+      roundState.diracLevel = 0;
+      roundState.phase = 'live';
+      roundState.phaseEndsAt = Infinity;
+      roundState.carrying = false;
+      roundState.carrierAlly = null;
+      roundState.planted = false;
+      roundState.plantSite = null;
+      roundState.plantProgress = 0;
+      roundState.inSite = null;
+      roundState.outcome = null;
+      roundState.spectating = false;
+      gameStats.defusing = false;
+      gameStats.defuseProgress = 0;
+      this.hooks.onRoundStart();
+      return;
+    }
     roundState.roundNum = 1;
     roundState.scoreCORO = 0;
     roundState.scoreDIRAC = 0;
@@ -70,6 +104,7 @@ export class RoundManager {
 
   /** Chamado todo frame pelo loop de jogo. */
   update(now: number, dtMs: number, moved: boolean) {
+    if (this.training) return; // campo de provas: a ação nunca acaba
     switch (roundState.phase) {
       case 'buy': {
         if (inputState.readyQueued || now >= roundState.phaseEndsAt) {
@@ -166,6 +201,8 @@ export class RoundManager {
    * gente em campo, a rodada SEGUE com o jogador em espectador — os
    * aliados podem vencer por varrida ou protegendo a carga plantada.
    * Sem aliados vivos: ponto DIRAC na hora.
+   * (No campo de provas o Game não chama — lá quem cuida da volta é o
+   * respawn do treino, não a rodada.)
    */
   killPlayer() {
     if (roundState.phase !== 'live') return;

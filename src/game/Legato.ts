@@ -43,9 +43,21 @@ for (let i = 0; i < 12; i++) {
   SPRAY_STACCATO.push([x, y]);
 }
 
+// GLISSANDO — escopeta de corredera (Etapa 16): o bombeamento é lento, então
+// a arma volta quase à origem entre tiros; o que sobe é o “recuo de ombro” —
+// cada tiro consecutivo empurra a mira um pouco mais para cima. O cone de
+// balins vivo (dispersão) é sorteado no fire(), aqui é só a tendência central.
+export const SPRAY_GLISSANDO: Array<[number, number]> = [];
+for (let i = 0; i < 6; i++) {
+  const x = Math.sin(i * 2.4) * 0.22; // vai-e-vem curto (o cano balança)
+  const y = i * 0.55; // sobe firmemente a cada bombeamento apressado
+  SPRAY_GLISSANDO.push([x, y]);
+}
+
 const TABLES: Record<WeaponId, Array<[number, number]>> = {
   LEGATO: SPRAY_LEGATO,
   STACCATO: SPRAY_STACCATO,
+  GLISSANDO: SPRAY_GLISSANDO,
 };
 
 export const sprayAt = (index: number, weapon: WeaponId): [number, number] => {

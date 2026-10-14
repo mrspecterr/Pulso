@@ -27,6 +27,7 @@ import {
   AGENTS,
   CSS,
   COLORS,
+  ECONOMY,
   EYE_HEIGHT,
   MOVE_SPEED,
   MUZZLE_MS,
@@ -37,6 +38,7 @@ import {
   TRACOS,
   TRACER_LENGTH,
   TRACER_MS,
+  TRAINING,
   WEAPONS,
 } from '../config/constants';
 import type { QualityId, TracoKey } from '../config/constants';
@@ -155,6 +157,17 @@ function runGame(
   const A = AGENTS[sessionState.agent];
   // mapa da sessão (Etapa 14): sites, spawn, rotas e caminhos
   const M = MAPS[sessionState.map];
+  // campo de provas (Etapa 16): treino livre — dB infinito, sem rodadas
+  const training = sessionState.mode === 'treino';
+
+  // partida nova, estatísticas novas (Etapa 16): o Game remonta a cada
+  // partida, mas os contadores viviam no state.ts global e atravessavam
+  // sessões — o fim de partida mostrava (e a carreira gravava) totais
+  // acumulados de todas as partidas do processo
+  gameStats.kills = 0;
+  gameStats.headshots = 0;
+  gameStats.shots = 0;
+  gameStats.hits = 0;
 
   // --- cena ---
   const scene = new THREE.Scene();
@@ -455,6 +468,31 @@ function runGame(
         spawnPulse(COLORS.MAGENTA);
         break;
       }
+      case 'cadencia': {
+        // VIBRATO (Etapa 16): reafina o esquadrão — o jogador regenera ao
+        // longo do canal e os aliados no raio recebem a cura na hora
+        playerVitals.regenUntil = nowMs + TRACOS.CADENCIA_MS;
+        playerVitals.regenPerSec = TRACOS.CADENCIA_REGEN;
+        allies.healNear(
+          camera.position,
+          TRACOS.CADENCIA_ALLY_RANGE,
+          TRACOS.CADENCIA_HEAL
+        );
+        spawnPulse(0xb48cff);
+        break;
+      }
+      case 'ritardando': {
+        // VIBRATO (Etapa 16): campo de lentidão — DIRACs no raio ficam
+        // pesados e demoram a reagir enquanto o campo segura
+        squad.slowNear(
+          camera.position,
+          TRACOS.RITARDANDO_RANGE,
+          nowMs + TRACOS.RITARDANDO_MS,
+          TRACOS.RITARDANDO_REACT_MS
+        );
+        spawnPulse(0x8fb7ff);
+        break;
+      }
     }
 
     tracoState.uses[kind]--;
@@ -490,6 +528,8 @@ function runGame(
     dashUntil = 0;
     playerVitals.shieldBonus = 0;
     playerVitals.shieldBonusUntil = 0;
+    playerVitals.regenUntil = 0; // CADÊNCIA não atravessa rodadas
+    playerVitals.regenPerSec = 0;
     removeBarrier();
     bundle.clearPlant();
     range.reset();
@@ -505,7 +545,12 @@ function runGame(
     onPlanted: (site) => bundle.plant(site),
     // Etapa 12: o CORO segue em campo enquanto restar alguém vivo
     coroAlive: () => playerVitals.hp > 0 || allies.info.alive > 0,
+    // Etapa 16: campo de provas (a máquina de rodadas fica desligada)
+    training,
   });
+
+  // campo de provas: caído → volta ao spawn com o kit recarregado
+  let respawnAt = 0;
 
   // dano do bot acertando o jogador: COURAÇA (temporal) e traje absorvem,
   // HUD pisca, morte encerra — a menos que o esquadrão ainda lute (Etapa 12)
@@ -526,6 +571,12 @@ function runGame(
     hudEvents.emit({ type: 'playerHit', dmg, hp: playerVitals.hp });
     if (playerVitals.hp <= 0) {
       hudEvents.emit({ type: 'feed', killer, victim: 'VOCÊ' });
+      if (training) {
+        // Etapa 16: no campo de provas não há rodada — quem decide a volta
+        // é o respawn do treino (spawn + vida + kit + pente cheios)
+        respawnAt = performance.now() + TRAINING.RESPAWN_MS;
+        return;
+      }
       rounds.killPlayer();
       // Etapa 13: líder caiu com o Diapasão → o aliado vivo mais próximo
       // pega a carga e leva ao site (a rodada segue com você de espectador)
@@ -639,26 +690,140 @@ function runGame(
     camera.getWorldDirection(fwd);
     right.set(1, 0, 0).applyQuaternion(camera.quaternion);
     up.set(0, 1, 0).applyQuaternion(camera.quaternion);
-    tmpDir
-      .copy(fwd)
-      .addScaledVector(right, Math.tan(sxDeg * DEG2RAD))
-      .addScaledVector(up, -Math.tan(syDeg * DEG2RAD))
-      .normalize();
+
+    // origem visual: boca da arma (viewmodel em primeira pessoa)
+    const start = weapon.muzzleWorld(tmpVec);
 
     // raycast: cenário + bonecos de treino + operadores DIRAC vivos
     const liveTargets = range.meshes.filter((m) => {
       const d = range.dummies[(m.userData as { dummyId: number }).dummyId];
       return d.state === 'alive';
     });
-    raycaster.set(camera.position, tmpDir);
-    const hits = raycaster.intersectObjects(
-      [...bundle.solids, ...liveTargets, ...squad.aliveMeshes],
-      false
-    );
-    const hit = hits.length > 0 ? hits[0] : null;
+    const hitGroup = [...bundle.solids, ...liveTargets, ...squad.aliveMeshes];
 
-    // origem visual: boca da arma (viewmodel em primeira pessoa)
-    const start = weapon.muzzleWorld(tmpVec);
+    // ---- GLISSANDO (Etapa 16): leque de balins ----
+    // Cada balim sorteia um ponto no cone de dispersão (em volta da
+    // tendência do spray). O dano é somado POR VÍTIMA e aplicado uma única
+    // vez — um abate, um feed, um pagamento; precisão conta o gatilho.
+    if (W.PELLETS > 1) {
+      const dummyHits = new Map<number, { dmg: number; head: boolean; point: THREE.Vector3 }>();
+      const botHits = new Map<number, { dmg: number; head: boolean; point: THREE.Vector3 }>();
+      const sparkPts: Array<{ p: THREE.Vector3; n: THREE.Vector3 | null }> = [];
+      const ends: THREE.Vector3[] = []; // até 3 tracers do leque
+
+      for (let i = 0; i < W.PELLETS; i++) {
+        // disco uniforme no cone (sqrt evita aglomerar no centro)
+        const rr = Math.sqrt(Math.random()) * W.SPREAD_DEG;
+        const ang = Math.random() * Math.PI * 2;
+        const sx = sxDeg + Math.cos(ang) * rr;
+        const sy = syDeg + Math.sin(ang) * rr;
+        tmpDir
+          .copy(fwd)
+          .addScaledVector(right, Math.tan(sx * DEG2RAD))
+          .addScaledVector(up, -Math.tan(sy * DEG2RAD))
+          .normalize();
+        raycaster.set(camera.position, tmpDir);
+        const hits = raycaster.intersectObjects(hitGroup, false);
+        const hit = hits.length > 0 ? hits[0] : null;
+        const end = hit
+          ? hit.point.clone()
+          : start.clone().addScaledVector(tmpDir, TRACER_LENGTH);
+        if (ends.length < 3) ends.push(end);
+
+        const ud = hit
+          ? (hit.object.userData as { dummyId?: number; botId?: number; part?: string })
+          : null;
+        if (hit && ud && ud.dummyId != null) {
+          const h = dummyHits.get(ud.dummyId) ?? {
+            dmg: 0,
+            head: false,
+            point: end,
+          };
+          h.dmg += ud.part === 'head' ? W.DMG_HEAD : W.DMG_BODY;
+          h.head = h.head || ud.part === 'head';
+          dummyHits.set(ud.dummyId, h);
+        } else if (hit && ud && ud.botId != null) {
+          const h = botHits.get(ud.botId) ?? {
+            dmg: 0,
+            head: false,
+            point: end,
+          };
+          h.dmg += ud.part === 'head' ? W.DMG_HEAD : W.DMG_BODY;
+          h.head = h.head || ud.part === 'head';
+          botHits.set(ud.botId, h);
+        } else if (hit) {
+          // cenário: guarda até 3 pontos para as faíscas do leque
+          if (sparkPts.length < 3) {
+            sparkPts.push({
+              p: end,
+              n: hit.face
+                ? tmpNormal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).clone()
+                : null,
+            });
+          }
+        }
+      }
+
+      // aplica o dano somado por vítima (mesmos canais da bala única)
+      dummyHits.forEach((h, id) => {
+        const res = range.damage(range.dummies[id], h.dmg, h.head);
+        gameStats.hits++;
+        if (h.head) gameStats.headshots++;
+        if (res.killed) {
+          gameStats.kills++;
+          rounds.payKill();
+          hudEvents.emit({ type: 'kill', head: h.head });
+        } else {
+          hudEvents.emit({ type: 'hit', head: h.head });
+        }
+        sparks.burst(h.point, null, 0xff8fc4, 8, 2.6);
+      });
+      botHits.forEach((h, id) => {
+        const res = squad.damage(squad.byId(id), h.dmg, h.head, 'VOCÊ');
+        gameStats.hits++;
+        if (h.head) gameStats.headshots++;
+        if (res.killed) {
+          gameStats.kills++;
+          rounds.payKill();
+          hudEvents.emit({ type: 'kill', head: h.head });
+          hudEvents.emit({ type: 'feed', killer: 'VOCÊ', victim: `DIRAC ${id + 1}` });
+        } else {
+          hudEvents.emit({ type: 'hit', head: h.head });
+        }
+        sparks.burst(h.point, null, 0xff8fc4, 10, 2.6);
+      });
+      for (const s of sparkPts) {
+        sparks.burst(s.p, s.n, 0xffe2ad, 7, 4.2);
+      }
+      for (const e of ends) {
+        spawnTracer(start, e);
+      }
+
+      muzzleLight.position.copy(start);
+      muzzleLight.intensity = 24; // escopeta acende o corredor
+      muzzleUntil = nowMs + MUZZLE_MS;
+      weapon.onFire(); // recuo pesado + clarão grande + corredera
+      viewPunch = Math.min(viewPunch + 1.25, 1.6); // chute forte da câmera
+
+      ammo--;
+      gameStats.ammo = ammo;
+      gameStats.shots++;
+      hudEvents.emit({ type: 'shot' });
+      squad.heardShot(camera.position, nowMs);
+      if (ammo <= 0) startReload(nowMs);
+      return;
+    }
+
+    // ---- bala única (STACCATO / LEGATO) ----
+    tmpDir
+      .copy(fwd)
+      .addScaledVector(right, Math.tan(sxDeg * DEG2RAD))
+      .addScaledVector(up, -Math.tan(syDeg * DEG2RAD))
+      .normalize();
+
+    raycaster.set(camera.position, tmpDir);
+    const hits = raycaster.intersectObjects(hitGroup, false);
+    const hit = hits.length > 0 ? hits[0] : null;
 
     // aplica dano se acertou alguém (treino ou DIRAC)
     let end: THREE.Vector3;
@@ -820,6 +985,42 @@ function runGame(
         now >= playerVitals.shieldBonusUntil
       ) {
         playerVitals.shieldBonus = 0;
+      }
+
+      // CADÊNCIA (VIBRATO, Etapa 16): a reafinação devolve vida ao jogador
+      if (
+        playerVitals.hp > 0 &&
+        playerVitals.hp < PLAYER_HP &&
+        now < playerVitals.regenUntil
+      ) {
+        playerVitals.hp = Math.min(
+          PLAYER_HP,
+          playerVitals.hp + playerVitals.regenPerSec * dt
+        );
+      }
+
+      // CAMPO DE PROVAS (Etapa 16): dB infinito + respawn do treino
+      if (training) {
+        roundState.dB = ECONOMY.MAX_DB; // arsenal sempre aberto
+        if (respawnAt > 0 && now >= respawnAt) {
+          respawnAt = 0;
+          camera.position.set(M.spawn[0], EYE_HEIGHT, M.spawn[1]);
+          camera.rotation.z = 0; // desfaz o rolê da death-cam
+          lookState.yaw = 0;
+          lookState.pitch = 0;
+          playerVitals.hp = PLAYER_HP;
+          // kit do agente e pente cheios: treinar Traços sem esperar rodada
+          for (const t of A.tracos) {
+            tracoState.uses[t.key] = t.uses;
+            tracoState.readyAt[t.key] = 0;
+          }
+          lastWeapon = roundState.weapon;
+          ammo = WEAPONS[lastWeapon].MAG;
+          weapon.setWeapon(lastWeapon);
+          reloading = false;
+          gameStats.reloading = false;
+          gameStats.ammo = ammo;
+        }
       }
 
       // death-cam: câmera despenca e rola quando o jogador cai

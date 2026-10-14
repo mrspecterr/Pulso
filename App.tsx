@@ -10,7 +10,8 @@ import HomeScreen from './src/client/HomeScreen';
 import AgentsScreen from './src/client/AgentsScreen';
 import SettingsScreen from './src/client/SettingsScreen';
 import { CSS } from './src/config/constants';
-import { gameStats, hudEvents, sessionState } from './src/core/state';
+import { gameStats, hudEvents, sessionState, uiState } from './src/core/state';
+import type { SessionMode } from './src/core/state';
 import { loadProfile, recordMatch } from './src/client/profile';
 import { SFX } from './src/game/Audio';
 
@@ -64,7 +65,11 @@ type Screen = 'splash' | 'home' | 'agents' | 'settings' | 'match';
 
 export default function App() {
   const [screen, setScreen] = React.useState<Screen>('splash');
-  const [session, setSession] = React.useState<{ agent: string; map: string } | null>(null);
+  const [session, setSession] = React.useState<{
+    agent: string;
+    map: string;
+    mode: SessionMode;
+  } | null>(null);
 
   React.useEffect(() => {
     // trava em paisagem mesmo quando app.json não é aplicável (ex.: Snack)
@@ -93,16 +98,19 @@ export default function App() {
       }
       if (e.type === 'backToSelect') {
         setSession(null);
+        uiState.trainMenuOpen = false; // arsenal do treino fecha junto
         setScreen('home');
       }
     });
     return off;
   }, []);
 
-  const startMatch = () => {
+  const startMatch = (mode: SessionMode) => {
     // o motor lê sessionState (hidratado do perfil e mantido vivo pelas
     // telas do hub); a key força remontar em cima da escolha atual
-    setSession({ agent: sessionState.agent, map: sessionState.map });
+    sessionState.mode = mode;
+    uiState.trainMenuOpen = false;
+    setSession({ agent: sessionState.agent, map: sessionState.map, mode });
     setScreen('match');
   };
 
@@ -115,7 +123,8 @@ export default function App() {
 
         {screen === 'home' && (
           <HomeScreen
-            onPlay={startMatch}
+            onPlay={() => startMatch('partida')}
+            onTraining={() => startMatch('treino')}
             onAgents={() => setScreen('agents')}
             onSettings={() => setScreen('settings')}
           />
@@ -127,7 +136,7 @@ export default function App() {
 
         {screen === 'match' && session && (
           <>
-            <Game key={`${session.agent}-${session.map}`} />
+            <Game key={`${session.agent}-${session.map}-${session.mode}`} />
             <Hud />
           </>
         )}

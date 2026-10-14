@@ -28,11 +28,17 @@ export default function AudioBridge() {
     const off = hudEvents.subscribe((e) => {
       switch (e.type) {
         case 'shot':
-          SFX.play(
-            roundState.weapon === 'LEGATO' ? 'fire_legato' : 'fire_staccato',
-            0.9,
-            rand(0.94, 1.07) // variação de timbre por tiro
-          );
+          if (roundState.weapon === 'GLISSANDO') {
+            // escopeta (Etapa 16): estrondo + a corredera bombeando depois
+            SFX.play('fire_gli', 1, rand(0.92, 1.05));
+            setTimeout(() => SFX.play('pump', 0.7, rand(0.95, 1.08)), 300);
+          } else {
+            SFX.play(
+              roundState.weapon === 'LEGATO' ? 'fire_legato' : 'fire_staccato',
+              0.9,
+              rand(0.94, 1.07) // variação de timbre por tiro
+            );
+          }
           break;
 
         case 'botShot': {

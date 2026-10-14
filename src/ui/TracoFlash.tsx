@@ -7,7 +7,7 @@ import { hudEvents } from '../core/state';
  * TracoFlash — feedback em tela cheia quando um Traço é executado.
  * Cada kit tem a sua assinatura visual: CENZURA (clarão branco),
  * BARREIRA/IMPULSO (véu teal), SONAR (véu ciano), COURAÇA (âmbar),
- * ONDA (flash magenta).
+ * ONDA (flash magenta), CADÊNCIA/RITARDANDO (violeta — Etapa 16).
  */
 const FX: Record<TracoKey, { color: string; peak: number; ms: number }> = {
   cenzura: { color: '#F8FEFF', peak: 0.42, ms: 420 },
@@ -16,6 +16,8 @@ const FX: Record<TracoKey, { color: string; peak: number; ms: number }> = {
   sonar: { color: '#9FD8E8', peak: 0.26, ms: 480 },
   couraca: { color: '#FFB454', peak: 0.28, ms: 420 },
   onda: { color: CSS.MAGENTA, peak: 0.34, ms: 320 },
+  cadencia: { color: '#B48CFF', peak: 0.24, ms: 520 },
+  ritardando: { color: '#8FB7FF', peak: 0.28, ms: 460 },
 };
 
 export default function TracoFlash() {

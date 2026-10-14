@@ -147,7 +147,7 @@ export default function SettingsScreen({ onBack }: { onBack: () => void }) {
             )}
           </View>
 
-          <Text style={st.foot}>PULSO v0.15.0 · github.com/mrspecterr/Pulso</Text>
+          <Text style={st.foot}>PULSO v0.16.0 · github.com/mrspecterr/Pulso</Text>
         </View>
       </FadeSlide>
     </View>
