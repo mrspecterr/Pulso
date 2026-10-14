@@ -44,10 +44,11 @@ export const BTN = {
   TRACO2: { right: 34, bottom: 290, w: 72, h: 72 },
   // canal de plantio (retângulo ~150×68)
   PLANT: { right: 150, bottom: 128, w: 150, h: 68 },
-  // sensibilidade e qualidade — coluna ESQUERDA, abaixo das vitais do HUD
+  // sensibilidade, qualidade e som — coluna ESQUERDA, abaixo das vitais do HUD
   // (verificadas antes da zona do joystick, que cobre toda a metade esquerda)
   SENS: { left: 22, top: 150, w: 104, h: 34 },
   GRAF: { left: 22, top: 192, w: 104, h: 34 },
+  SND: { left: 22, top: 234, w: 104, h: 34 }, // Etapa 11: volume do áudio
 } as const;
 
 // folga extra ao redor do centro do botão para o hit-test (tolerância de

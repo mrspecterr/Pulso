@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { BOTS, COLORS, DEFUSE } from '../config/constants';
 import { StaticBuckets } from '../core/merge';
+import { hudEvents } from '../core/state';
 
 type BotPhase = 'patrol' | 'alert' | 'engage' | 'retake' | 'silencing' | 'dying' | 'dead';
 
@@ -779,6 +780,7 @@ export class BotSquad {
 
     ctx.tracer(this.tmpA, this.tmpB);
     ctx.muzzle(this.tmpA);
+    hudEvents.emit({ type: 'botShot', dist }); // Etapa 11: o estrondo abafado do DIRAC
     if (Math.random() < acc) ctx.hitPlayer(BOTS.DMG);
   }
 

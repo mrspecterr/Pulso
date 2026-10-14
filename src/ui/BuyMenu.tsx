@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CSS, SHIELDS, WEAPONS } from '../config/constants';
 import type { WeaponId } from '../config/constants';
 import { inputState, playerVitals, roundState } from '../core/state';
+import { SFX } from '../game/Audio';
 
 const MONO = 'monospace';
 
@@ -19,7 +20,12 @@ export default function BuyMenu() {
     const spec = WEAPONS[id];
     if (roundState.weapon === id) return;
     if (id === 'LEGATO' && roundState.dB < spec.price) return;
-    if (id === 'LEGATO') roundState.dB -= spec.price;
+    if (id === 'LEGATO') {
+      roundState.dB -= spec.price;
+      SFX.play('buy', 0.85); // comprou: caixa registradora (Etapa 11)
+    } else {
+      SFX.play('ui', 0.6); // troca grátis: clique seco
+    }
     roundState.weapon = id;
     refresh();
   };
@@ -30,10 +36,12 @@ export default function BuyMenu() {
     roundState.dB -= price;
     roundState.shield = id;
     playerVitals.shield = id;
+    SFX.play(price > 0 ? 'buy' : 'ui', price > 0 ? 0.85 : 0.6);
     refresh();
   };
 
   const ready = () => {
+    SFX.play('ui', 0.8);
     inputState.readyQueued = true;
   };
 

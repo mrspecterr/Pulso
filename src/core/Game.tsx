@@ -16,6 +16,7 @@ import { RoundManager } from '../game/Round';
 import { sprayAt } from '../game/Legato';
 import { WeaponSystem } from '../game/Weapon';
 import { Sparks } from '../game/Sparks';
+import { SFX } from '../game/Audio';
 import {
   AGENTS,
   CSS,
@@ -518,6 +519,7 @@ function runGame(
     const W = WEAPONS[roundState.weapon];
     if (reloading) return;
     if (ammo <= 0) {
+      hudEvents.emit({ type: 'dry' }); // gatilho no vazio (Etapa 11)
       startReload(nowMs);
       return;
     }
@@ -650,6 +652,10 @@ function runGame(
   let prevPitch = lookState.pitch;
   let viewPunch = 0; // recuo visual da câmera (sobe e decai)
   let fpsEma = 60; // média móvel de quadros (Etapa 10)
+  let nextBeep = 0; // próximo beep do Diapasão plantado (Etapa 11)
+
+  // o subsolo começa a respirar: zumbido ambiente em loop (Etapa 11)
+  SFX.ambient(true);
   const loop = () => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
@@ -725,6 +731,19 @@ function runGame(
 
       // fases da rodada
       rounds.update(now, dtMs, moved);
+
+      // Etapa 11: o Diapasão plantado canta — beeps que aceleram conforme
+      // o fusível derrete (40s → 0: de ~1/s a ~8/s)
+      if (roundState.phase === 'live' && roundState.planted) {
+        if (now >= nextBeep) {
+          const left = Math.max(0, roundState.chargeEndsAt - now);
+          SFX.play('charge_beep', 0.55);
+          const frac = left / ROUND.CHARGE_MS;
+          nextBeep = now + 130 + frac * 880;
+        }
+      } else {
+        nextBeep = 0; // próximo plantio começa cantando na hora
+      }
 
       // operadores DIRAC (apenas na fase de ação)
       squad.update(dt, now, {
@@ -805,6 +824,7 @@ function runGame(
           ammo = WEAPONS[roundState.weapon].MAG;
           gameStats.ammo = ammo;
           gameStats.reloading = false;
+          hudEvents.emit({ type: 'reloadDone' }); // ferrolho fechou (Etapa 11)
         }
       }
 
@@ -882,6 +902,7 @@ function runGame(
   stopRef.current = () => {
     stopped = true;
     cancelAnimationFrame(raf);
+    SFX.ambient(false); // o subsolo silencia junto com a partida
   };
 }
 

@@ -29,6 +29,7 @@ export const sessionState = {
 export const settings = {
   sensMultiplier: 1, // 1 | 1.5 | 2
   quality: 'MEDIO' as QualityId, // Etapa 10: pipeline de desempenho
+  volume: 1, // Etapa 11: volume do áudio (1 | 0.5 | 0)
 };
 
 // Estatísticas exibidas no HUD (escritas pelo loop, lidas por polling).
@@ -125,7 +126,11 @@ export type HudEvent =
   | { type: 'traco'; kind: TracoKey } // Traço executado (Etapa 7/8)
   | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim' | 'silenced'; coro: number; dirac: number; dB: number }
   | { type: 'matchOver'; winner: 'CORO' | 'DIRAC' }
-  | { type: 'backToSelect' }; // partida encerrada → seleção de agente (Etapa 8)
+  | { type: 'backToSelect' } // partida encerrada → seleção de agente (Etapa 8)
+  | { type: 'plantTick' } // canal de plantio em andamento (Etapa 11)
+  | { type: 'botShot'; dist: number } // um DIRAC disparou a esta distância (Etapa 11)
+  | { type: 'dry' } // gatilho no vazio (Etapa 11)
+  | { type: 'reloadDone' } // recarga concluída (Etapa 11);
 
 // Mini event-bus para efeitos do HUD (pulso da mira, hitmarker etc.)
 export const hudEvents = (() => {

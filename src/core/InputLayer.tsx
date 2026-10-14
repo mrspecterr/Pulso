@@ -43,6 +43,7 @@ import {
   settings,
   tracoState,
 } from './state';
+import { SFX } from '../game/Audio';
 
 // RN já usou number e string p/ identifier em versões diferentes — normaliza.
 const tid = (t: { identifier: string | number }) => String(t.identifier);
@@ -141,6 +142,15 @@ export default React.memo(function InputLayer({ active }: Props) {
     settings.quality = next;
   };
 
+  // Etapa 11: volume do áudio — 100% → 50% → mudo → 100%
+  const cycleVolume = () => {
+    const order = [1, 0.5, 0];
+    const i = order.indexOf(settings.volume);
+    settings.volume = order[(i + 1) % order.length];
+    SFX.onVolumeChanged(); // o hum do subsolo acompanha na hora
+    if (settings.volume > 0) SFX.play('ui', 0.6); // confirma audível
+  };
+
   // --- atribuição de papel no instante em que o dedo toca ---
   const assign = (t: NativeTouchEvent): Role => {
     const x = t.pageX;
@@ -154,6 +164,10 @@ export default React.memo(function InputLayer({ active }: Props) {
     }
     if (inTopBtn(x, y, BTN.GRAF)) {
       cycleQuality();
+      return { kind: 'none' };
+    }
+    if (inTopBtn(x, y, BTN.SND)) {
+      cycleVolume();
       return { kind: 'none' };
     }
 

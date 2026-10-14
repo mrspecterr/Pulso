@@ -13,7 +13,7 @@
 3. Toque no arquivo baixado. Se o Android pedir, permita **instalar apps de fontes desconhecidas**.
 4. Jogue. 🎮
 
-Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions — é só voltar na aba Releases pra atualizar (instala por cima da versão anterior, mantendo a mesma assinatura).
+Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions — é só voltar na aba Releases pra atualizar (instala por cima da versão anterior, mantendo a mesma assinatura).
 
 ## 🎮 Controles
 
@@ -25,6 +25,8 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 | Recarregar | Botão `R` |
 | Plantar Diapasão | Segurar o botão `◈` dentro do site |
 | Comprar | Loja durante a fase de compra |
+| Traços | Botões `◈` `⇢` `⛨` (kit do agente) |
+| Som | Botão `SOM` (100% · 50% · mudo) |
 
 ## 🧩 Sistemas do jogo
 
@@ -39,6 +41,7 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
 - **Mapa SUBSOLO** — 40×32m com corredores, sites A/B, caixotes e colisão real.
 - **Direção de arte (v0.9)** — texturas procedurais (concreto, lajes, painéis, hazard), iluminação com sombras dinâmicas, arma em primeira pessoa animada, faíscas de impacto, luminárias/vigas/canos e placas de site.
+- **Áudio e feedback (v0.11)** — todo o áudio é procedural (sintetizado por `scripts/gen_sfx.py`, zero assets externos): tiros com variação de timbre, estrondos do DIRAC com atenuação por distância, recarga com dois estágios, o Diapasão canta ao ser plantado e acelera o bip conforme o fusível derrete, detonação com sub-grave, motivos de vitória/derrota e o zumbido contínuo do subsolo. Haptics em acerto/abate/dano/plantio e botão `SOM` (100% · 50% · mudo).
 
 ## 🗺️ Roadmap
 
@@ -52,11 +55,12 @@ Cada push na branch `main` gera automaticamente um APK novo via GitHub Actions �
 - [x] **8** — Agentes jogáveis com kits próprios (MUDO, ECO, GRAVE) + troca de agente entre partidas
 - [x] **9** — Direção de arte: texturas, iluminação/sombras, viewmodel, VFX
 - [x] **10** — Multi-touch real (camada única de entrada) + desempenho (merge de geometria, resolução escalonada, contador de FPS)
-- [ ] **11+** — Áudio e feedback, matchmaking 5v5, polimento
+- [x] **11** — Áudio e feedback: SFX 100% procedurais, haptics, botão SOM, automação de APK no GitHub Actions
+- [ ] **12+** — Matchmaking 5v5, polimento
 
 ## 🔧 Como o APK é feito (automático)
 
-Push na `main` → GitHub Actions roda `npm ci` → `expo prebuild` → `gradlew assembleRelease` (assinado) → APK publicado em **Releases**. Ninguém precisa de PC: o build acontece na nuvem do GitHub.
+Push de uma **tag** `vX.Y.Z` → GitHub Actions roda `npm ci` → `expo prebuild` (a assinatura release é injetada pelo plugin `plugins/with-signing.js`, que liga o keystore de `signing/`) → `gradlew assembleRelease` → APK publicado em **Releases**. Também dá rodar manualmente na aba **Actions → APK → Run workflow** (o APK sai como artifact). Ninguém precisa de PC: o build acontece na nuvem do GitHub.
 
 ## 🛠️ Stack
 

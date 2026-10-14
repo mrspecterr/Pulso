@@ -21,6 +21,7 @@ interface Hooks {
 
 export class RoundManager {
   private hooks: Hooks;
+  private lastPlantTick = 0; // Etapa 11: cadência dos pings do canal de plantio
 
   constructor(hooks: Hooks) {
     this.hooks = hooks;
@@ -88,6 +89,11 @@ export class RoundManager {
           playerVitals.hp > 0;
         if (canPlant) {
           roundState.plantProgress += dtMs / ROUND.PLANT_MS;
+          // Etapa 11: o Diapasão canta enquanto é plantado (ping a cada 650 ms)
+          if (now - this.lastPlantTick >= 650) {
+            this.lastPlantTick = now;
+            hudEvents.emit({ type: 'plantTick' });
+          }
           if (roundState.plantProgress >= 1) {
             roundState.plantProgress = 1;
             this.plant(now);

@@ -6,8 +6,10 @@ import type { AgentId } from './src/config/constants';
 import Game from './src/core/Game';
 import Hud from './src/ui/Hud';
 import AgentSelect from './src/ui/AgentSelect';
+import AudioBridge from './src/core/AudioBridge';
 import { CSS } from './src/config/constants';
 import { hudEvents, sessionState } from './src/core/state';
+import { SFX } from './src/game/Audio';
 
 /**
  * ErrorBoundary — se qualquer componente quebrar, mostra o erro em texto
@@ -58,8 +60,11 @@ export default function App() {
   React.useEffect(() => {
     // trava em paisagem mesmo quando app.json não é aplicável (ex.: Snack)
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+    // Etapa 11: liga o motor de áudio (players + modo) o quanto antes
+    SFX.init();
     return () => {
       ScreenOrientation.unlockAsync().catch(() => {});
+      SFX.ambient(false);
     };
   }, []);
 
@@ -79,6 +84,7 @@ export default function App() {
         {agent == null ? (
           <AgentSelect
             onPick={(a) => {
+              SFX.play('ui', 0.8); // Etapa 11: confirma a entrada
               sessionState.agent = a; // o motor lê daqui ao montar
               setAgent(a);
             }}
@@ -89,6 +95,8 @@ export default function App() {
             <Hud />
           </>
         )}
+        {/* Etapa 11: som + haptics dos eventos do jogo (sempre montado) */}
+        <AudioBridge />
         <StatusBar hidden style="light" />
       </View>
     </ErrorBoundary>

@@ -56,6 +56,7 @@ interface Snap {
   fps: number; // quadros por segundo (Etapa 10)
   sens: number; // multiplicador de sensibilidade vigente
   quality: string; // rótulo da qualidade gráfica vigente
+  vol: number; // volume do áudio vigente (Etapa 11)
 }
 
 function readState(): Snap {
@@ -95,6 +96,7 @@ function readState(): Snap {
     fps: gameStats.fps,
     sens: settings.sensMultiplier,
     quality: QUALITY[settings.quality].label,
+    vol: settings.volume,
   };
 }
 
@@ -135,7 +137,7 @@ export default function Hud() {
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
-          RODADA {s.roundNum} · v0.10
+          RODADA {s.roundNum} · v0.11
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}
@@ -211,6 +213,11 @@ export default function Hud() {
       </View>
       <View pointerEvents="none" style={styles.grafBtn}>
         <Text style={styles.grafTxt}>GRAF {s.quality}</Text>
+      </View>
+      <View pointerEvents="none" style={styles.sndBtn}>
+        <Text style={styles.sndTxt}>
+          SOM {s.vol > 0 ? `${Math.round(s.vol * 100)}%` : 'MUDO'}
+        </Text>
       </View>
 
       {/* ==== dicas contextuais ==== */}
@@ -416,6 +423,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   grafTxt: { fontFamily: MONO, fontSize: 11, letterSpacing: 1, color: '#AFC2CE' },
+  sndBtn: {
+    position: 'absolute',
+    left: BTN.SND.left,
+    top: BTN.SND.top,
+    width: BTN.SND.w,
+    height: BTN.SND.h,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(242,251,255,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sndTxt: { fontFamily: MONO, fontSize: 11, letterSpacing: 1, color: '#EAF6F2' },
   hint: { fontFamily: MONO, fontSize: 12, letterSpacing: 1, color: '#AFC2CE' },
   hintDim: {
     fontFamily: MONO,

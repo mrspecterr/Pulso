@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AGENTS, CSS, ROUND, type AgentId } from '../config/constants';
+import { SFX } from '../game/Audio';
 
 const MONO = 'monospace';
 const ORDER: AgentId[] = ['MUDO', 'ECO', 'GRAVE'];
@@ -34,7 +35,10 @@ export default function AgentSelect({ onPick }: { onPick: (a: AgentId) => void }
                 active && styles.cardOn,
                 pressed && styles.cardP,
               ]}
-              onPress={() => setSel(id)}
+              onPress={() => {
+                if (sel !== id) SFX.play('ui', 0.45); // Etapa 11: navegação sonora sutil
+                setSel(id);
+              }}
             >
               <Text style={[styles.nome, { color: ag.corCss }]}>{ag.nome}</Text>
               <Text style={styles.funcao}>{ag.funcao}</Text>

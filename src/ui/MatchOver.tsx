@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CSS, ROUND } from '../config/constants';
 import { gameStats, inputState, roundState } from '../core/state';
+import { SFX } from '../game/Audio';
 
 const MONO = 'monospace';
 
@@ -34,6 +35,7 @@ export default function MatchOver() {
         <Pressable
           style={({ pressed }) => [styles.btn, pressed && styles.btnP]}
           onPress={() => {
+            SFX.play('ui', 0.8);
             inputState.restartQueued = true;
           }}
         >
@@ -42,6 +44,7 @@ export default function MatchOver() {
         <Pressable
           style={({ pressed }) => [styles.btnAlt, pressed && styles.btnAltP]}
           onPress={() => {
+            SFX.play('ui', 0.8);
             inputState.agentSelectQueued = true;
           }}
         >
