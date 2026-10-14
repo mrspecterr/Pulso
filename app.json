@@ -2,7 +2,7 @@
   "expo": {
     "name": "PULSO",
     "slug": "pulso",
-    "version": "0.13.0",
+    "version": "0.14.0",
     "orientation": "landscape",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.pulso.game",
-      "versionCode": 13,
+      "versionCode": 14,
       "adaptiveIcon": {
         "backgroundColor": "#0B0F14",
         "foregroundImage": "./assets/android-icon-foreground.png",

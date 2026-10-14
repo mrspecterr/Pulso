@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type { AgentId } from './src/config/constants';
+import type { MapId } from './src/config/maps';
 import Game from './src/core/Game';
 import Hud from './src/ui/Hud';
 import AgentSelect from './src/ui/AgentSelect';
@@ -53,9 +54,13 @@ class ErrorBoundary extends React.Component<
  * PULSO — FPS tático 5v5 por rodadas (mobile).
  * Etapa 8: seleção de operador CORO (MUDO, ECO, GRAVE) antes da
  * partida; o loop 3D só nasce depois da escolha.
+ * Etapa 14: o MAPA também faz parte da sessão — trocar agente OU mapa
+ * remonta o motor em cima da nova escolha.
  */
 export default function App() {
-  const [agent, setAgent] = React.useState<AgentId | null>(null);
+  const [session, setSession] = React.useState<{ agent: AgentId; map: MapId } | null>(
+    null
+  );
 
   React.useEffect(() => {
     // trava em paisagem mesmo quando app.json não é aplicável (ex.: Snack)
@@ -71,27 +76,28 @@ export default function App() {
   // fim de partida → pedido de troca de agente: desmonta o jogo
   // e volta à seleção (Etapa 8)
   React.useEffect(() => {
-    if (agent == null) return;
+    if (session == null) return;
     const off = hudEvents.subscribe((e) => {
-      if (e.type === 'backToSelect') setAgent(null);
+      if (e.type === 'backToSelect') setSession(null);
     });
     return off;
-  }, [agent]);
+  }, [session]);
 
   return (
     <ErrorBoundary>
       <View style={styles.root}>
-        {agent == null ? (
+        {session == null ? (
           <AgentSelect
-            onPick={(a) => {
+            onPick={(a, m) => {
               SFX.play('ui', 0.8); // Etapa 11: confirma a entrada
               sessionState.agent = a; // o motor lê daqui ao montar
-              setAgent(a);
+              sessionState.map = m; // Etapa 14: mapa da sessão
+              setSession({ agent: a, map: m });
             }}
           />
         ) : (
           <>
-            <Game key={agent} />
+            <Game key={`${session.agent}-${session.map}`} />
             <Hud />
           </>
         )}

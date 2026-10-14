@@ -133,10 +133,7 @@ export const ROUND = {
   SITE_RADIUS: 2.2, // raio da zona de plant (m)
 } as const;
 
-export const SITES = {
-  A: { x: -13, z: -12.5 }, // teal
-  B: { x: 13, z: -12.5 }, // magenta
-} as const;
+// (sites, limites do mundo, spawn e rotas por mapa: ver config/maps.ts — Etapa 14)
 
 // --- jogador ---
 export const PLAYER_HP = 100;
@@ -335,12 +332,6 @@ export const DEFUSE = {
   MS: 7000, // canal de silenciamento (interrompível por dano)
   RADIUS: 1.4, // distância do Diapasão para silenciar
   RETAKE_SPEED: 2.1, // m/s correndo de volta ao site
-} as const;
-
-// --- mundo (limites do SUBSOLO, para o minimapa da Etapa 13) ---
-export const WORLD = {
-  W: 40, // x ∈ [-20, 20]
-  H: 32, // z ∈ [-16, 16] (norte = -Z)
 } as const;
 
 // --- dificuldade escalonada dos DIRACs (Etapa 13) ---

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { COLORS, SITES } from '../config/constants';
+import { COLORS } from '../config/constants';
+import { MAPS } from '../config/maps';
+import { PlantViz } from '../game/PlantViz';
 import { StaticBuckets } from '../core/merge';
 import {
   beamTexture,
@@ -55,6 +57,7 @@ export interface SceneBundle {
  * e os SÓLIDOS continuam exatamente os mesmos das etapas anteriores.
  */
 export function buildSubsolo(scene: THREE.Scene): SceneBundle {
+  const SITES = MAPS.SUBSOLO.sites;
   const colliders: AABB[] = [];
   const solids: THREE.Object3D[] = [];
 
@@ -508,40 +511,8 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   solids.push(...solidStatics.build());
   decorStatics.build();
 
-  // --- DIAPASÃO (núcleo que viaja com o jogador e é plantado) ---
-  const diapOuter = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.62, 0)),
-    new THREE.LineBasicMaterial({ color: COLORS.TEAL, transparent: true, opacity: 0.85 })
-  );
-  const diapRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.44, 0.02, 8, 40),
-    new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA })
-  );
-  const diapCore = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.15, 0),
-    new THREE.MeshBasicMaterial({ color: 0xd9fff4 })
-  );
-  const diapasao = new THREE.Group();
-  diapasao.add(diapOuter, diapRing, diapCore);
-  diapasao.visible = false; // o Diapasão viaja com o jogador (Etapa 5)
-  scene.add(diapasao);
-
-  // anel de pulso que expande do Diapasão plantado
-  const pulseRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.7, 0.82, 48),
-    new THREE.MeshBasicMaterial({
-      color: COLORS.TEAL,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    })
-  );
-  pulseRing.rotation.x = -Math.PI / 2;
-  pulseRing.visible = false;
-  scene.add(pulseRing);
-  let pulseT = 0;
+  // --- DIAPASÃO plantado — visual compartilhado entre os mapas (Etapa 14) ---
+  const viz = new PlantViz(scene);
 
   // ================= ILUMINAÇÃO =================
   // luz-chave quente atravessando o teto (propositadamente) — desenha as
@@ -583,39 +554,20 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
   scene.add(midLight);
 
   const update = (dt: number, t: number) => {
-    diapOuter.rotation.y += dt * 0.5;
-    diapOuter.rotation.x += dt * 0.13;
-    diapRing.rotation.x += dt * 1.1;
-    diapRing.rotation.y -= dt * 0.7;
-    diapasao.position.y = 1.15 + Math.sin(t * 1.7) * 0.1;
-    diapCore.scale.setScalar(0.9 + Math.sin(t * 3.4) * 0.28);
-    diapCore.rotation.y += dt * 2.2;
+    viz.update(dt, t);
     siteALight.intensity = 12 + Math.sin(t * 3.4) * 4; // o pulso
     siteBLight.intensity = 8.5 + Math.sin(t * 3.4 + Math.PI) * 2.5;
     pylonA.opacity = 0.75 + Math.abs(Math.sin(t * 2.2)) * 0.25;
     pylonB.opacity = 0.75 + Math.abs(Math.sin(t * 2.2 + 0.8)) * 0.25;
-
-    // anel do Diapasão plantado: expande em loop
-    if (pulseRing.visible) {
-      pulseT += dt * 0.55;
-      if (pulseT > 1) pulseT -= 1;
-      pulseRing.scale.setScalar(0.6 + pulseT * 3.2);
-      (pulseRing.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - pulseT);
-    }
   };
 
   const plant = (site: 'A' | 'B') => {
     const s = site === 'A' ? SITES.A : SITES.B;
-    diapasao.visible = true;
-    diapasao.position.set(s.x, 1.15, s.z);
-    pulseRing.visible = true;
-    pulseRing.position.set(s.x, 0.05, s.z);
-    pulseT = 0;
+    viz.plant(s.x, s.z);
   };
 
   const clearPlant = () => {
-    diapasao.visible = false;
-    pulseRing.visible = false;
+    viz.clearPlant();
   };
 
   // footprint congelado dos colisores para o minimapa (antes da BARREIRA,

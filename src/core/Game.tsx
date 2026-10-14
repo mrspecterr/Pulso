@@ -10,6 +10,8 @@ import type { ExpoWebGLRenderingContext } from 'expo-gl';
 import * as THREE from 'three';
 import { Renderer } from 'expo-three';
 import { buildSubsolo } from '../scenes/SubsoloScene';
+import type { SceneBundle } from '../scenes/SubsoloScene';
+import { buildPalco } from '../scenes/PalcoScene';
 import { TargetRange } from '../game/Targets';
 import { BotSquad } from '../game/Bots';
 import type { Combatant } from '../game/Bots';
@@ -19,6 +21,8 @@ import { sprayAt } from '../game/Legato';
 import { WeaponSystem } from '../game/Weapon';
 import { Sparks } from '../game/Sparks';
 import { SFX } from '../game/Audio';
+import { MAPS } from '../config/maps';
+import type { MapId } from '../config/maps';
 import {
   AGENTS,
   CSS,
@@ -30,7 +34,6 @@ import {
   PLAYER_RADIUS,
   QUALITY,
   ROUND,
-  SITES,
   TRACOS,
   TRACER_LENGTH,
   TRACER_MS,
@@ -53,11 +56,12 @@ import {
 
 const DEG2RAD = Math.PI / 180;
 
-// posições dos bonecos de treino (aquecimento no SPAWN, longe das rotas dos bots)
-const TARGET_SPOTS: Array<[number, number]> = [
-  [3, 10.5], // frente-direita do spawn
-  [-3.5, 11.5], // frente-esquerda do spawn
-];
+// construtores de cena por mapa (Etapa 14) — a geometria de JOGO
+// (rotas/âncoras/spawn/sites) vem do MAPS, a arte vem daqui
+const SCENE_BUILDERS: Record<MapId, (scene: THREE.Scene) => SceneBundle> = {
+  SUBSOLO: buildSubsolo,
+  PALCO: buildPalco,
+};
 
 interface Tracer {
   line: THREE.Line;
@@ -149,20 +153,26 @@ function runGame(
   const h = gl.drawingBufferHeight;
   // kit do agente escolhido na sessão (fixo durante a partida)
   const A = AGENTS[sessionState.agent];
+  // mapa da sessão (Etapa 14): sites, spawn, rotas e caminhos
+  const M = MAPS[sessionState.map];
 
   // --- cena ---
   const scene = new THREE.Scene();
-  const bundle = buildSubsolo(scene);
-  const range = new TargetRange(scene, TARGET_SPOTS);
-  const squad = new BotSquad(scene, bundle.solids);
-  const allies = new AllySquad(scene, bundle.solids); // Etapa 12: esquadrão CORO
-  // minimapa (Etapa 13): footprint estático das paredes do SUBSOLO
+  const bundle = SCENE_BUILDERS[sessionState.map](scene);
+  const range = new TargetRange(scene, M.targets);
+  const squad = new BotSquad(scene, bundle.solids, M);
+  const allies = new AllySquad(scene, bundle.solids, M); // Etapa 12: esquadrão CORO
+  // minimapa (Etapa 13/14): footprint das paredes + geometria do mapa
   minimapState.walls = bundle.walls;
+  minimapState.worldW = M.world.W;
+  minimapState.worldH = M.world.H;
+  minimapState.siteA = { x: M.sites.A.x, z: M.sites.A.z };
+  minimapState.siteB = { x: M.sites.B.x, z: M.sites.B.z };
 
   // --- câmera (spawn CORO: sul do mapa, olhando para o norte/-Z) ---
   const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 220);
   camera.rotation.order = 'YXZ';
-  camera.position.set(0, EYE_HEIGHT, 12.5);
+  camera.position.set(M.spawn[0], EYE_HEIGHT, M.spawn[1]);
 
   // posição viva + bots expostos no gancho de automação/diagnóstico
   const g = globalThis as unknown as {
@@ -275,8 +285,8 @@ function runGame(
   // --- Etapa 7: Traços ---
   // BARREIRA: muro de ressonância — bloqueia visão dos bots, balas e passagem
   const siteVec: Record<'A' | 'B', THREE.Vector3> = {
-    A: new THREE.Vector3(SITES.A.x, 0, SITES.A.z),
-    B: new THREE.Vector3(SITES.B.x, 0, SITES.B.z),
+    A: new THREE.Vector3(M.sites.A.x, 0, M.sites.A.z),
+    B: new THREE.Vector3(M.sites.B.x, 0, M.sites.B.z),
   };
   let barrier: {
     mesh: THREE.Mesh;
@@ -461,7 +471,7 @@ function runGame(
   let lastWeapon = roundState.weapon;
 
   const resetPlayerForRound = () => {
-    camera.position.set(0, EYE_HEIGHT, 12.5);
+    camera.position.set(M.spawn[0], EYE_HEIGHT, M.spawn[1]);
     camera.rotation.z = 0; // desfaz o rolê da death-cam
     lookState.yaw = 0;
     lookState.pitch = 0;
@@ -729,8 +739,8 @@ function runGame(
 
   // --- distância ao site mais próximo (zona de plantio) ---
   const siteUnder = (x: number, z: number): 'A' | 'B' | null => {
-    const distA = Math.hypot(x - SITES.A.x, z - SITES.A.z);
-    const distB = Math.hypot(x - SITES.B.x, z - SITES.B.z);
+    const distA = Math.hypot(x - M.sites.A.x, z - M.sites.A.z);
+    const distB = Math.hypot(x - M.sites.B.x, z - M.sites.B.z);
     if (distA <= ROUND.SITE_RADIUS) return 'A';
     if (distB <= ROUND.SITE_RADIUS) return 'B';
     return null;

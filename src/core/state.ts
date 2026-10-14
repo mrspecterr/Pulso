@@ -3,6 +3,7 @@
 // de componente a cada frame.
 
 import type { AgentId, QualityId, TracoKey, WeaponId } from '../config/constants';
+import type { MapId } from '../config/maps';
 import { Animated } from 'react-native';
 import { TRACOS } from '../config/constants';
 
@@ -21,9 +22,11 @@ export const inputState = {
 };
 
 // Sessão (Etapa 8): o agente escolhido antes da partida; persiste entre
-// rodadas e só muda passando pela tela de seleção.
+// rodadas e só muda passando pela tela de seleção. Etapa 14: o MAPA da
+// sessão vive aqui também.
 export const sessionState = {
   agent: 'MUDO' as AgentId,
+  map: 'SUBSOLO' as MapId,
 };
 
 export const settings = {
@@ -121,6 +124,11 @@ export const minimapState = {
   px: 0,
   pz: 12.5,
   yaw: 0,
+  // geometria do mapa da sessão (Etapa 14) — o Game preenche ao montar
+  worldW: 40,
+  worldH: 32,
+  siteA: { x: -13, z: -12.5 },
+  siteB: { x: 13, z: -12.5 },
   allies: [
     { x: 0, z: 0, alive: true, show: true },
     { x: 0, z: 0, alive: true, show: true },

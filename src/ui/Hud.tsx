@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { AGENTS, BTN, CSS, PLAYER_HP, QUALITY, WEAPONS } from '../config/constants';
+import { MAPS } from '../config/maps';
 import { ALLY_NAMES } from '../game/Allies';
 import {
   gameStats,
@@ -170,7 +171,7 @@ export default function Hud() {
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
-          RODADA {s.roundNum} · v0.13
+          RODADA {s.roundNum} · {MAPS[sessionState.map].nome} · v0.14
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}

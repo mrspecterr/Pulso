@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AGENTS, CSS, ROUND, type AgentId } from '../config/constants';
+import { MAPS, type MapId } from '../config/maps';
 import { SFX } from '../game/Audio';
+import { sessionState } from '../core/state';
 
 const MONO = 'monospace';
 const ORDER: AgentId[] = ['MUDO', 'ECO', 'GRAVE'];
+const MAP_ORDER: MapId[] = ['SUBSOLO', 'PALCO'];
 
 /**
  * AgentSelect (Etapa 8) — tela de escolha do operador CORO antes da
- * partida. Cada agente tem função própria, velocidade e um kit de dois
- * Traços; a escolha vale a partida inteira (pode trocar no fim dela).
+ * partida. Etapa 14: o MAPA também se escolhe aqui — cada agente tem função
+ * própria e cada mapa pede uma leitura diferente do campo. A escolha vale a
+ * partida inteira.
  */
-export default function AgentSelect({ onPick }: { onPick: (a: AgentId) => void }) {
+export default function AgentSelect({ onPick }: { onPick: (a: AgentId, m: MapId) => void }) {
   const [sel, setSel] = useState<AgentId>('MUDO');
+  const [map, setMap] = useState<MapId>(sessionState.map);
   const A = AGENTS[sel];
+  const M = MAPS[map];
 
   return (
     <View style={styles.root}>
@@ -68,14 +74,43 @@ export default function AgentSelect({ onPick }: { onPick: (a: AgentId) => void }
         })}
       </View>
 
+      {/* Etapa 14: seletor de mapa */}
+      <View style={styles.mapRow}>
+        {MAP_ORDER.map((id) => {
+          const m = MAPS[id];
+          const active = map === id;
+          return (
+            <Pressable
+              key={id}
+              style={({ pressed }) => [
+                styles.mapCard,
+                { borderColor: active ? m.corCss : 'rgba(122,139,153,0.30)' },
+                active && styles.mapCardOn,
+                pressed && styles.mapCardP,
+              ]}
+              onPress={() => {
+                if (map !== id) SFX.play('ui', 0.45);
+                setMap(id);
+              }}
+            >
+              <Text style={[styles.mapNome, { color: m.corCss }]}>{m.nome}</Text>
+              <Text style={styles.mapTag}>{m.tagline}</Text>
+              <Text style={styles.mapBio} numberOfLines={2}>
+                {m.bio}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <Pressable
         style={({ pressed }) => [styles.go, pressed && styles.goP]}
-        onPress={() => onPick(sel)}
+        onPress={() => onPick(sel, map)}
       >
-        <Text style={styles.goTxt}>ENTRAR NO SUBSOLO COM {A.nome}</Text>
+        <Text style={styles.goTxt}>ENTRAR NO {M.nome} COM {A.nome}</Text>
       </Pressable>
       <Text style={styles.foot}>
-        5v5 no subsolo · primeiro a {ROUND.ROUNDS_TO_WIN} rodadas vence · a escolha vale a partida
+        5v5 no {M.nome.toLowerCase()} · primeiro a {ROUND.ROUNDS_TO_WIN} rodadas vence · a escolha vale a partida
       </Text>
     </View>
   );
@@ -98,6 +133,21 @@ const styles = StyleSheet.create({
   },
   sub: { fontFamily: MONO, fontSize: 10, letterSpacing: 4, color: CSS.TEXT_DIM, marginTop: 3 },
   row: { flex: 1, flexDirection: 'row', marginTop: 10, marginBottom: 8 },
+  mapRow: { flexDirection: 'row', marginBottom: 10 },
+  mapCard: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 2,
+    backgroundColor: 'rgba(18,26,34,0.92)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginHorizontal: 7,
+  },
+  mapCardOn: { backgroundColor: 'rgba(24,34,44,1)' },
+  mapCardP: { opacity: 0.85 },
+  mapNome: { fontFamily: MONO, fontSize: 13, fontWeight: 'bold', letterSpacing: 3 },
+  mapTag: { fontFamily: MONO, fontSize: 7, letterSpacing: 2, color: CSS.TEXT_DIM, marginTop: 1 },
+  mapBio: { fontFamily: MONO, fontSize: 7.5, color: '#8FA3B2', marginTop: 3, lineHeight: 10 },
   card: {
     flex: 1,
     borderRadius: 12,

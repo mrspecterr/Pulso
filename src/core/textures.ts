@@ -238,6 +238,57 @@ export function metalPanelTexture(seed = 3): THREE.DataTexture {
   });
 }
 
+/** Piso de tábuas (PALCO): veio alongado, tom por tábua, juntas escuras. */
+export function woodPlanksTexture(seed = 21): THREE.DataTexture {
+  const S = 256;
+  const PLANKS = 7; // tábuas por textura
+  const base = hexToRgb(0x7d5a3a);
+  return makeTex(S, (x, y, px) => {
+    const py = Math.floor((y / S) * PLANKS);
+    const ty = (y / S) * PLANKS - py;
+    // tom da tábua (madeira é heterogênea)
+    const tone = 0.78 + hash2(py, 4, seed) * 0.4;
+    // veio: fibra longa ao longo da tábua — ruído SÓ em x (v congelado),
+    // então a textura emenda perfeita no eixo y
+    const grain = 0.84 + vnoiseP((x / S) * 56, 0.5, seed + 3, 56) * 0.26;
+    // ruído fino (pontilhado — emenda invisível por ser aleatório)
+    const fiber = 0.94 + hash2(x, y, seed + 17) * 0.1;
+    let k = tone * grain * fiber;
+    // junta entre tábuas (escura)
+    if (ty < 0.028) k *= 0.42;
+    // nós ocasionais
+    const knot = hash2(py, Math.floor(x / 26), seed + 9);
+    if (knot > 0.988) k *= 0.68;
+    // poeira dos anos
+    k *= 0.86 + fbmP(x / S, y / S, seed + 40, 4, 3) * 0.24;
+    px[0] = base[0] * k;
+    px[1] = base[1] * k;
+    px[2] = base[2] * k;
+  });
+}
+
+/** Veludo da cortina (PALCO): dobras verticais com profundidade senoidal. */
+export function curtainTexture(seed = 31): THREE.DataTexture {
+  const S = 256;
+  const FOLDS = 8; // dobras por textura
+  const base = hexToRgb(0x7a2136);
+  return makeTex(S, (x, y, px) => {
+    const u = x / S;
+    const v = y / S;
+    // profundidade da dobra: cristas claras, vales escuros
+    const s = Math.sin(u * Math.PI * 2 * FOLDS);
+    const fold = 0.5 + 0.5 * s * s * (s > 0 ? 1 : 0.55) - 0.25;
+    // barbatana: cada dobra tem um realce fino
+    const rib = Math.abs(Math.sin(u * Math.PI * 2 * FOLDS + 0.6)) > 0.94 ? 1.18 : 1;
+    // pano: ruído suave (18 celas em v = 3 períodos → emenda invisível)
+    const cloth = 0.9 + fbmP(u, v * 3, seed, 6, 3) * 0.2;
+    const k = (0.52 + fold * 0.72) * rib * cloth;
+    px[0] = base[0] * k;
+    px[1] = base[1] * k;
+    px[2] = base[2] * k;
+  });
+}
+
 /** Faixa de segurança diagonal (amarelo queimado / quase-preto), gasta. */
 export function hazardTexture(): THREE.DataTexture {
   const S = 128;

@@ -18,7 +18,8 @@
 // ecoam (alertam inimigos) e cada abate alimenta o kill feed.
 
 import * as THREE from 'three';
-import { ALLIES, COLORS, ROUND, SITES } from '../config/constants';
+import { ALLIES, COLORS, ROUND } from '../config/constants';
+import type { MapDef } from '../config/maps';
 import { StaticBuckets } from '../core/merge';
 import { hudEvents, roundState } from '../core/state';
 import type { Combatant } from './Bots';
@@ -63,6 +64,7 @@ interface Ally {
   pingAt: number; // próximo "pressentimento" (líder caído)
   chain: Array<[number, number]>;
   chainWp: number;
+  chainSite: 'A' | 'B'; // a qual site a cadeia atual se destina (Etapa 14)
   walking: boolean; // animação de passo
   walkT: number;
   plantK: number; // progresso do plantio do aliado (Etapa 13)
@@ -105,29 +107,9 @@ const FORMATION: Array<[number, number]> = [
   [3.0, 2.6],
 ];
 
-// posições de defesa do site plantado (offsets por site — sul = entradas)
-const HOLD_SLOTS: Record<'A' | 'B', Array<[number, number]>> = {
-  A: [
-    [-15.6, -10.3],
-    [-10.4, -10.3],
-    [-13, -9.3],
-    [-17.6, -11.5],
-  ],
-  B: [
-    [15.6, -10.3],
-    [10.4, -10.3],
-    [13, -9.3],
-    [17.6, -11.5],
-  ],
-};
-
-// âncoras de travessia (espelham o retake DIRAC — mesmo caminho provado)
-const RETAKE_ANCHOR: Record<'A' | 'B', [number, number]> = {
-  A: [-10.5, -9.5],
-  B: [10.5, -9.5],
-};
-const RETAKE_MID: [number, number] = [0, -8.6];
-const SPAWN: [number, number] = [0, 12.5];
+// Postos de defesa, âncoras e o spawn vieram do MAPA (Etapa 14): ver
+// config/maps.ts — holdSlots por site, retake (âncora + vão central) e
+// spawn do CORO.
 
 const DEATH_MS = 450;
 
@@ -146,6 +128,7 @@ export class AllySquad {
   private allies: Ally[] = [];
   private ray = new THREE.Raycaster();
   private solids: THREE.Object3D[];
+  private map: MapDef;
   private tmpA = new THREE.Vector3();
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -168,10 +151,10 @@ export class AllySquad {
     a.phaseT = performance.now();
     a.shooting = false;
     a.burstLeft = 0;
-    const dA = Math.hypot(a.group.position.x - SITES.A.x, a.group.position.z - SITES.A.z);
-    const dB = Math.hypot(a.group.position.x - SITES.B.x, a.group.position.z - SITES.B.z);
+    const dA = Math.hypot(a.group.position.x - this.map.sites.A.x, a.group.position.z - this.map.sites.A.z);
+    const dB = Math.hypot(a.group.position.x - this.map.sites.B.x, a.group.position.z - this.map.sites.B.z);
     a.carrySite = dA <= dB ? 'A' : 'B';
-    this.chainTo(a, SITES[a.carrySite].x, SITES[a.carrySite].z);
+    this.chainTo(a, this.map.sites[a.carrySite].x, this.map.sites[a.carrySite].z);
     hudEvents.emit({ type: 'feed', killer: a.name, victim: 'PEGOU O DIAPASÃO' });
   }
 
@@ -181,8 +164,9 @@ export class AllySquad {
     roundState.carrierAlly = null;
   }
 
-  constructor(scene: THREE.Scene, solids: THREE.Object3D[]) {
+  constructor(scene: THREE.Scene, solids: THREE.Object3D[], map: MapDef) {
     this.solids = solids;
+    this.map = map;
 
     const bodyGeo = new THREE.CapsuleGeometry(0.26, 0.92, 6, 12);
     const headGeo = new THREE.SphereGeometry(0.18, 16, 12);
@@ -263,7 +247,7 @@ export class AllySquad {
 
       group.add(body, head, bar);
       const [fx, fz] = FORMATION[id];
-      group.position.set(SPAWN[0] + fx, 0, SPAWN[1] + fz);
+      group.position.set(this.map.spawn[0] + fx, 0, this.map.spawn[1] + fz);
       scene.add(group);
 
       this.allies.push({
@@ -294,6 +278,7 @@ export class AllySquad {
         pingAt: 0,
         chain: [],
         chainWp: 0,
+        chainSite: 'A',
         walking: false,
         walkT: 0,
         plantK: 0,
@@ -325,13 +310,14 @@ export class AllySquad {
       a.pingAt = 0;
       a.chain = [];
       a.chainWp = 0;
+      a.chainSite = 'A';
       a.walking = false;
       a.walkT = 0;
       a.plantK = 0;
       a.group.visible = true;
       a.group.rotation.set(0, 0, 0);
       const [fx, fz] = FORMATION[i];
-      a.group.position.set(SPAWN[0] + fx, 0, SPAWN[1] + fz);
+      a.group.position.set(this.map.spawn[0] + fx, 0, this.map.spawn[1] + fz);
       a.group.scale.setScalar(1);
       a.bar.visible = true;
       a.bodyMat.emissiveIntensity = 0.1;
@@ -400,16 +386,27 @@ export class AllySquad {
     return moved;
   }
 
-  /** Cadeia de waypoints até um ponto do mapa (âncoras do retake). */
+  /**
+   * Cadeia de waypoints até um ponto do mapa (Etapa 14: caminho provado do
+   * MAPA — spawn/porta → site — em vez de âncora única). Waypoints que já
+   * estão "atrás" do aliado (mais longe do alvo do que ele) caem fora;
+   * se mesmo assim travar, followChain reinjeta a rota inteira.
+   */
   private chainTo(a: Ally, tx: number, tz: number) {
     const site: 'A' | 'B' = tx < 0 ? 'A' : 'B';
-    const anchor = RETAKE_ANCHOR[site];
+    a.chainSite = site;
+    const ax = a.group.position.x;
+    const az = a.group.position.z;
+    const dHere = Math.hypot(tx - ax, tz - az);
+    const path = this.map.carry[site].filter(
+      (w) => Math.hypot(tx - w[0], tz - w[1]) <= dHere + 2
+    );
     const oppositeSide =
-      (site === 'A' && a.group.position.x > 2) ||
-      (site === 'B' && a.group.position.x < -2);
-    a.chain = oppositeSide
-      ? [RETAKE_MID, anchor, [tx, tz]]
-      : [anchor, [tx, tz]];
+      (site === 'A' && ax > 2) ||
+      (site === 'B' && ax < -2);
+    a.chain = (
+      oppositeSide ? [this.map.retake.mid] : []
+    ).concat(path, [[tx, tz] as [number, number]]);
     a.chainWp = 0;
     a.stuckMs = 0;
   }
@@ -429,7 +426,15 @@ export class AllySquad {
         a.stuckMs += dt * 1000;
         if (a.stuckMs > 1100) {
           a.stuckMs = 0;
-          if (a.chainWp < a.chain.length - 1) a.chainWp++; // pula o waypoint preso
+          if (a.chainWp >= a.chain.length - 1) {
+            // travou no ÚLTIMO trecho (encalhou numa quina/geometria):
+            // reinjeta o caminho provado do mapa até o alvo
+            const target = a.chain[a.chain.length - 1];
+            a.chain = [...this.map.carry[a.chainSite], target];
+            a.chainWp = 0;
+          } else {
+            a.chainWp++; // pula o waypoint preso
+          }
         }
       } else {
         a.stuckMs = 0;
@@ -763,8 +768,8 @@ export class AllySquad {
             break;
           }
           const d = Math.hypot(
-            SITES[a.carrySite].x - a.group.position.x,
-            SITES[a.carrySite].z - a.group.position.z
+            this.map.sites[a.carrySite].x - a.group.position.x,
+            this.map.sites[a.carrySite].z - a.group.position.z
           );
           if (d <= ROUND.SITE_RADIUS * 0.65) {
             a.phase = 'planting';
@@ -809,7 +814,7 @@ export class AllySquad {
   /** Ponto de defesa designado do aliado (fixo por slot no site plantado). */
   private holdPoint(a: Ally, ctx: AllyCtx): [number, number] {
     const site: 'A' | 'B' = ctx.plantPos && ctx.plantPos.x < 0 ? 'A' : 'B';
-    const [hx, hz] = HOLD_SLOTS[site][a.slot];
+    const [hx, hz] = this.map.holdSlots[site][a.slot];
     return [hx, hz];
   }
 

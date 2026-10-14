@@ -18,6 +18,7 @@
 
 import * as THREE from 'three';
 import { BOTS, COLORS, DEFUSE, DIFFICULTY } from '../config/constants';
+import type { MapDef } from '../config/maps';
 import { StaticBuckets } from '../core/merge';
 import { hudEvents } from '../core/state';
 
@@ -96,47 +97,12 @@ export interface BotInfo {
   pinged: boolean; // aceso no minimapa agora (Etapa 13)
 }
 
-// Rotas defensivas — waypoints em áreas abertas (não cruzam paredes).
-// 0/1: triângulo dentro do SITE A/B · 2: meio (Concurso)
-// 3/4 (Etapa 12): corredores A main e B main — 5 defensores no total.
-const ROUTES: Array<Array<[number, number]>> = [
-  [
-    [-13, -10.6],
-    [-11.4, -13],
-    [-14.6, -12.6],
-  ],
-  [
-    [13, -10.6],
-    [11.4, -13],
-    [14.6, -12.6],
-  ],
-  [
-    [0, -4.2],
-    [-4.4, -5.6],
-    [0, -8.6],
-    [4.4, -5.6],
-  ],
-  [
-    [-12.5, 6],
-    [-12.5, -2],
-    [-12, -8],
-  ],
-  [
-    [12.5, 6],
-    [12.5, -2],
-    [12, -8],
-  ],
-];
+// Rotas defensivas e âncoras de retake vieram do MAPA (Etapa 14):
+// this.map.botRoutes (BOTS.COUNT rotas, waypoints em áreas abertas) e
+// this.map.retake (âncora por site + vão central para quem vem do lado
+// oposto). Ver config/maps.ts.
 
 const DEATH_MS = 450;
-
-// Âncoras do retake (Etapa 7): passagem sul do site antes de entrar nele
-// e vão central do Concurso para quem vem do lado oposto do mapa.
-const RETAKE_ANCHOR: Record<'A' | 'B', [number, number]> = {
-  A: [-10.5, -9.5],
-  B: [10.5, -9.5],
-};
-const RETAKE_MID: [number, number] = [0, -8.6];
 
 /** Interpolação angular pelo caminho curto (-π..π). */
 function angLerp(a: number, b: number, t: number) {
@@ -158,6 +124,7 @@ export class BotSquad {
   private bots: Bot[] = [];
   private ray = new THREE.Raycaster();
   private solids: THREE.Object3D[];
+  private map: MapDef;
   private tmpA = new THREE.Vector3();
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -190,8 +157,9 @@ export class BotSquad {
     return now + lo + Math.random() * (hi - lo);
   }
 
-  constructor(scene: THREE.Scene, solids: THREE.Object3D[]) {
+  constructor(scene: THREE.Scene, solids: THREE.Object3D[], map: MapDef) {
     this.solids = solids;
+    this.map = map;
 
     const bodyGeo = new THREE.CapsuleGeometry(0.26, 0.92, 6, 12);
     const headGeo = new THREE.SphereGeometry(0.18, 16, 12);
@@ -217,7 +185,7 @@ export class BotSquad {
     });
     const thrusterMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
 
-    ROUTES.forEach((route, id) => {
+    this.map.botRoutes.forEach((route, id) => {
       const bodyMat = new THREE.MeshStandardMaterial({
         color: 0x232c38,
         roughness: 0.7,
@@ -643,12 +611,12 @@ export class BotSquad {
         b.shooting = false;
         // rota: vem do lado oposto do mapa? passa pelo vão central antes
         const site: 'A' | 'B' = ctx.plantPos.x < 0 ? 'A' : 'B';
-        const anchor = RETAKE_ANCHOR[site];
+        const anchor = this.map.retake.anchor[site];
         const oppositeSide =
           (site === 'A' && b.group.position.x > 2) ||
           (site === 'B' && b.group.position.x < -2);
         b.retakeChain = oppositeSide
-          ? [RETAKE_MID, anchor, [ctx.plantPos.x, ctx.plantPos.z]]
+          ? [this.map.retake.mid, anchor, [ctx.plantPos.x, ctx.plantPos.z]]
           : [anchor, [ctx.plantPos.x, ctx.plantPos.z]];
         b.retakeWp = 0;
         b.defuseK = 0;
@@ -818,9 +786,11 @@ export class BotSquad {
             if (b.stuckMs > 1200) {
               // travado: reinjeta o vão central no meio da rota
               b.retakeChain = [
-                RETAKE_MID,
+                this.map.retake.mid,
                 ...b.retakeChain.filter(
-                  (p) => p[0] !== RETAKE_MID[0] || p[1] !== RETAKE_MID[1]
+                  (p) =>
+                    p[0] !== this.map.retake.mid[0] ||
+                    p[1] !== this.map.retake.mid[1]
                 ),
               ];
               b.retakeWp = 0;

@@ -1,17 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { CSS, SITES, WORLD } from '../config/constants';
+import { CSS } from '../config/constants';
 import { minimapState } from '../core/state';
 
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
-// escala do mundo para o retângulo do minimapa (px por metro)
-const S = 4.4;
-const W = WORLD.W * S; // 40 m → 176 px
-const H = WORLD.H * S; // 32 m → ~141 px
+// Geometria do mapa da sessão (Etapa 14): chega com as paredes quando o
+// mundo 3D termina de construir. A escala encaixa o mapa numa caixa de
+// ~176×150 px qualquer que seja a planta.
+const MAX_W = 176;
+const MAX_H = 150;
 
-const toX = (x: number) => (x + WORLD.W / 2) * S;
-const toY = (z: number) => (z + WORLD.H / 2) * S;
+interface Layout {
+  walls: Array<{ minX: number; maxX: number; minZ: number; maxZ: number }>;
+  W: number;
+  H: number;
+  A: { x: number; z: number };
+  B: { x: number; z: number };
+}
+
+const readLayout = (): Layout => ({
+  walls: minimapState.walls,
+  W: minimapState.worldW,
+  H: minimapState.worldH,
+  A: minimapState.siteA,
+  B: minimapState.siteB,
+});
 
 interface Frame {
   px: number;
@@ -38,8 +52,9 @@ function readFrame(): Frame {
 }
 
 /**
- * Minimapa tático (Etapa 13) — planta do SUBSOLO vista de cima (norte = -Z
- * = topo). Paredes e colunas são o footprint real dos colisores do mapa.
+ * Minimapa tático (Etapa 13) — planta do mapa da sessão vista de cima
+ * (norte = -Z = topo). Paredes e colunas são o footprint real dos
+ * colisores do mapa. Etapa 14: desenha qualquer planta — SUBSOLO ou PALCO.
  *
  * Legenda: seta teal = você · pontos teal = esquadrão · ◈ = quem carrega o
  * Diapasão · pontos magenta = DIRAC aceso (atirou, levou dano ou revelado
@@ -49,23 +64,31 @@ function readFrame(): Frame {
  */
 export default function Minimap() {
   const [f, setF] = useState<Frame>(() => readFrame());
-  const [walls, setWalls] = useState(minimapState.walls);
+  const [lay, setLay] = useState<Layout>(() => readLayout());
 
   useEffect(() => {
     const id = setInterval(() => {
       setF(readFrame());
-      // as paredes chegam quando o mundo 3D termina de construir
-      if (walls.length === 0 && minimapState.walls.length > 0) {
-        setWalls(minimapState.walls);
+      // a geometria chega quando o mundo 3D termina de construir
+      if (lay.walls.length === 0 && minimapState.walls.length > 0) {
+        setLay(readLayout());
       }
     }, 150);
     return () => clearInterval(id);
-  }, [walls.length]);
+  }, [lay.walls.length]);
+
+  // escala: px por metro (o mapa inteiro cabe na caixa)
+  const S = Math.min(4.4, MAX_W / lay.W, MAX_H / lay.H);
+  const BW = lay.W * S;
+  const BH = lay.H * S;
+  const toX = (x: number) => (x + lay.W / 2) * S;
+  const toY = (z: number) => (z + lay.H / 2) * S;
+  const sitePos = f.planted ? (f.planted === 'A' ? lay.A : lay.B) : null;
 
   return (
-    <View pointerEvents="none" style={styles.box}>
+    <View pointerEvents="none" style={[styles.box, { width: BW, height: BH }]}>
       {/* paredes, colunas e caixotes (footprint dos colisores) */}
-      {walls.map((w, i) => (
+      {lay.walls.map((w, i) => (
         <View
           key={i}
           style={[
@@ -81,19 +104,19 @@ export default function Minimap() {
       ))}
 
       {/* sites de plantio */}
-      <Text style={[styles.site, styles.siteA, { left: toX(SITES.A.x) - 4, top: toY(SITES.A.z) - 8 }]}>
+      <Text style={[styles.site, styles.siteA, { left: toX(lay.A.x) - 4, top: toY(lay.A.z) - 8 }]}>
         A
       </Text>
-      <Text style={[styles.site, styles.siteB, { left: toX(SITES.B.x) - 4, top: toY(SITES.B.z) - 8 }]}>
+      <Text style={[styles.site, styles.siteB, { left: toX(lay.B.x) - 4, top: toY(lay.B.z) - 8 }]}>
         B
       </Text>
 
       {/* Diapasão plantado: losango pulsando no site */}
-      {f.planted ? (
+      {sitePos ? (
         <View
           style={[
             styles.plantedWrap,
-            { left: toX(SITES[f.planted].x) - 9, top: toY(SITES[f.planted].z) - 9 },
+            { left: toX(sitePos.x) - 9, top: toY(sitePos.z) - 9 },
           ]}
         >
           <View style={styles.plantedRing} />
@@ -146,8 +169,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 22,
     top: 78,
-    width: W,
-    height: H,
     backgroundColor: 'rgba(8,12,17,0.72)',
     borderRadius: 6,
     overflow: 'hidden',
