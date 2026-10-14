@@ -460,8 +460,11 @@ export function buildEstudio(scene: THREE.Scene, weather: WeatherId = 'PADRAO'):
   decorStatics.add(ledStrip);
 
   // Drum riser da SALA A + tapetes (visuais — 12cm, não bloqueiam)
-  const riser = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 3.4), darkMetal);
-  riser.position.set(SITES.A.x, 0.06, SITES.A.z);
+  // NOTA: o riser NÃO fica sob o site — o anel de pulso do Diapasão
+  // (PlantViz, y≈0,05) ficaria enterrado nele. Fica ao lado, como palco
+  // visual da bateria morta.
+  const riser = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 2.4), darkMetal);
+  riser.position.set(-16.4, 0.06, -8.0);
   riser.receiveShadow = true;
   decorStatics.add(riser);
   const rugAt = (x: number, z: number, w: number, d: number) => {
@@ -489,7 +492,7 @@ export function buildEstudio(scene: THREE.Scene, weather: WeatherId = 'PADRAO'):
     decorStatics.add(head);
   };
   micAt(-10.5, -9.2);
-  micAt(-15, -8.5);
+  micAt(-16.9, -10.5);
   micAt(10.5, -9.2);
   micAt(15, -8.5);
 
@@ -551,18 +554,11 @@ export function buildEstudio(scene: THREE.Scene, weather: WeatherId = 'PADRAO'):
     ring.position.set(x, 0.17, z);
     decorStatics.add(ring);
   };
-  // o pedestal da SALA A sobe 12cm — sobre o riser
-  const baseA = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.62, 0.16, 22), darkMetal);
-  baseA.position.set(SITES.A.x, 0.08 + 0.12, SITES.A.z);
-  baseA.castShadow = true;
-  decorStatics.add(baseA);
-  const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.028, 8, 32), tealGlow);
-  ringA.rotation.x = -Math.PI / 2;
-  ringA.position.set(SITES.A.x, 0.17 + 0.12, SITES.A.z);
-  decorStatics.add(ringA);
+  pedestalAt(SITES.A.x, SITES.A.z, tealGlow);
   pedestalAt(SITES.B.x, SITES.B.z, magentaGlow);
 
-  // molduras pintadas dos sites no chão (a da SALA A sobre o riser)
+  // molduras pintadas dos sites no chão (nível do piso — o anel do
+  // Diapasão plantado tem de respirar em cima)
   const siteFrame = (x: number, z: number, y: number, color: number) => {
     const mat = new THREE.MeshBasicMaterial({
       color,
@@ -596,7 +592,7 @@ export function buildEstudio(scene: THREE.Scene, weather: WeatherId = 'PADRAO'):
     fill.position.set(x, y - 0.006, z);
     decorStatics.add(fill);
   };
-  siteFrame(SITES.A.x, SITES.A.z, 0.135, COLORS.TEAL); // sobre o riser
+  siteFrame(SITES.A.x, SITES.A.z, 0.021, COLORS.TEAL);
   siteFrame(SITES.B.x, SITES.B.z, 0.021, COLORS.MAGENTA);
 
   // placas A / B na parede norte de cada sala
