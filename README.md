@@ -39,6 +39,7 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - **Diapasão** — o objetivo: plante no Site A ou B e proteja a carga por 40s.
 - **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas.
 - **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
+- **Esquadrão 5v5 (v0.12)** — quatro aliados CORO (TENOR, ALTO, BAIXO, CONTRA) lutam ao seu lado: seguem sua formação, engajam DIRACs à vista, defendem o site plantado e caçam sozinhos se você cair. Kill feed no canto, barra do esquadrão no HUD, modo espectador quando você é abatido e vitória por varrida (`DIRAC VARRIDO DO MAPA`). Os DIRACs também cresceram para cinco — e agora revidam quando baleados durante o retake.
 - **Mapa SUBSOLO** — 40×32m com corredores, sites A/B, caixotes e colisão real.
 - **Direção de arte (v0.9)** — texturas procedurais (concreto, lajes, painéis, hazard), iluminação com sombras dinâmicas, arma em primeira pessoa animada, faíscas de impacto, luminárias/vigas/canos e placas de site.
 - **Áudio e feedback (v0.11)** — todo o áudio é procedural (sintetizado por `scripts/gen_sfx.py`, zero assets externos): tiros com variação de timbre, estrondos do DIRAC com atenuação por distância, recarga com dois estágios, o Diapasão canta ao ser plantado e acelera o bip conforme o fusível derrete, detonação com sub-grave, motivos de vitória/derrota e o zumbido contínuo do subsolo. Haptics em acerto/abate/dano/plantio e botão `SOM` (100% · 50% · mudo).
@@ -56,7 +57,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **9** — Direção de arte: texturas, iluminação/sombras, viewmodel, VFX
 - [x] **10** — Multi-touch real (camada única de entrada) + desempenho (merge de geometria, resolução escalonada, contador de FPS)
 - [x] **11** — Áudio e feedback: SFX 100% procedurais, haptics, botão SOM, automação de APK no GitHub Actions
-- [ ] **12+** — Matchmaking 5v5, polimento
+- [x] **12** — Esquadrão 5v5: aliados CORO com IA (formação, combate, defesa do site, caça), DIRACs revidando no retake, kill feed, espectador e varrida
+- [ ] **13+** — Polimento e equilíbrio
 
 ## 🔧 Como o APK é feito (automático)
 

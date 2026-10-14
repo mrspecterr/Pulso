@@ -2,9 +2,10 @@
 //
 // Cada bot é um defensor com rota de patrulha por waypoints em áreas
 // abertas do SUBSOLO. Comportamento:
-//   patrol → anda a rota; vê o jogador (cone de visão + linha de visão
-//            livre até 16m) ou OUVE um tiro perto → alert
-//   alert  → trava na direção do jogador por um tempo de reação humano
+//   patrol → anda a rota; vê um CORO (cone de visão + linha de visão
+//            livre até 16m — jogador OU aliado, Etapa 12) ou OUVE um tiro
+//            perto → alert
+//   alert  → trava na direção do alvo por um tempo de reação humano
 //   engage → strafe lateral + rajadas de 3–6 tiros com imprecisão por
 //            distância e movimento do alvo; sem visão por ~0.9s → patrol
 //   retake (Etapa 7) → Diapasão plantado: corre de volta ao site
@@ -12,13 +13,26 @@
 //   silencing → canal de 7s junto ao Diapasão; dano ou CENZURA interrompe
 //   dying  → tomba (450ms); sem respawn até a próxima rodada
 //
-// O dano ao jogador passa pelo callback hitPlayer (o Game aplica o
-// escudo, emite o evento de HUD e encerra a rodada se necessário).
+// O dano ao alvo passa pelo callback hit do Combatant (o Game aplica o
+// escudo do jogador, emite o evento de HUD e encerra a rodada se necessário).
 
 import * as THREE from 'three';
 import { BOTS, COLORS, DEFUSE } from '../config/constants';
 import { StaticBuckets } from '../core/merge';
 import { hudEvents } from '../core/state';
+
+/**
+ * Combatente visível aos DIRACs (Etapa 12): o jogador e os aliados CORO
+ * implementam isto — posição viva (referência), flags atualizadas por
+ * frame e o canal de dano com o nome do atirador (p/ kill feed).
+ */
+export interface Combatant {
+  pos: THREE.Vector3; // posição viva (câmera do jogador / corpo do aliado)
+  moving: boolean;
+  alive: boolean;
+  isPlayer: boolean;
+  hit: (dmg: number, killer: string) => void;
+}
 
 type BotPhase = 'patrol' | 'alert' | 'engage' | 'retake' | 'silencing' | 'dying' | 'dead';
 
@@ -53,16 +67,17 @@ interface Bot {
   retakeChain: Array<[number, number]>; // waypoints até o Diapasão
   retakeWp: number; // índice do waypoint do retake
   stuckMs: number; // tempo sem conseguir andar (destrava o retake)
+  targetIdx: number; // índice do alvo CORO atual em ctx.targets (-1 = som)
+  soundX: number; // de onde veio o último tiro ouvido
+  soundZ: number;
 }
 
 export interface BotCtx {
   camera: THREE.Camera; // para a barra de vida encarar a câmera
-  playerPos: THREE.Vector3;
-  playerAlive: boolean;
+  /** alvos CORO em campo (jogador + aliados vivos) — Etapa 12 */
+  targets: Combatant[];
   active: boolean; // fase de ação em curso (bots percebem/atiram)
-  playerMoving: boolean;
   blocked: (x: number, z: number) => boolean;
-  hitPlayer: (dmg: number) => void;
   tracer: (from: THREE.Vector3, to: THREE.Vector3) => void;
   muzzle: (pos: THREE.Vector3) => void;
   /** posição do Diapasão plantado (null = não plantado) — Etapa 7 */
@@ -80,7 +95,8 @@ export interface BotInfo {
 }
 
 // Rotas defensivas — waypoints em áreas abertas (não cruzam paredes).
-// A: triângulo dentro do SITE A · B: espelho no SITE B · meio: Concurso.
+// 0/1: triângulo dentro do SITE A/B · 2: meio (Concurso)
+// 3/4 (Etapa 12): corredores A main e B main — 5 defensores no total.
 const ROUTES: Array<Array<[number, number]>> = [
   [
     [-13, -10.6],
@@ -97,6 +113,16 @@ const ROUTES: Array<Array<[number, number]>> = [
     [-4.4, -5.6],
     [0, -8.6],
     [4.4, -5.6],
+  ],
+  [
+    [-12.5, 6],
+    [-12.5, -2],
+    [-12, -8],
+  ],
+  [
+    [12.5, 6],
+    [12.5, -2],
+    [12, -8],
   ],
 ];
 
@@ -276,6 +302,9 @@ export class BotSquad {
         retakeChain: [],
         retakeWp: 0,
         stuckMs: 0,
+        targetIdx: -1,
+        soundX: 0,
+        soundZ: 0,
       });
     });
 
@@ -285,6 +314,17 @@ export class BotSquad {
   /** Bot pelo id (userData do raycast). */
   byId(id: number): Bot {
     return this.bots[id];
+  }
+
+  /** Posição viva do bot (referência — Etapa 12: alvo dos aliados). */
+  posOf(id: number): THREE.Vector3 {
+    return this.bots[id].group.position;
+  }
+
+  /** Bot em campo (vivo)? */
+  isAlive(id: number): boolean {
+    const b = this.bots[id];
+    return b.phase !== 'dying' && b.phase !== 'dead';
   }
 
   /** Malhas vivas para o raycast das balas do jogador. */
@@ -299,14 +339,16 @@ export class BotSquad {
   }
 
   /** Aplica dano; mesmo formato de retorno do campo de treino. */
-  damage(bot: Bot, amount: number, isHead: boolean): { killed: boolean; hp: number } {
+  damage(bot: Bot, amount: number, isHead: boolean, killer?: string): { killed: boolean; hp: number } {
     if (bot.phase === 'dying' || bot.phase === 'dead') {
       return { killed: false, hp: 0 };
     }
     bot.hp -= amount;
     bot.flash = 1;
-    // levar tiro revela o atirador
+    // levar tiro revela o atirador e vira o rosto pra origem do dano
     bot.lastSeen = performance.now();
+    bot.soundX = bot.group.position.x;
+    bot.soundZ = bot.group.position.z;
     // silenciamento/retake interrompidos: ele luta de volta
     if (bot.phase === 'silencing') {
       bot.defuseK = 0;
@@ -322,6 +364,10 @@ export class BotSquad {
       bot.phase = 'dying';
       bot.phaseT = performance.now();
       bot.bar.visible = false;
+      if (killer) {
+        // Etapa 12: kill feed — quem abateu um operador DIRAC
+        hudEvents.emit({ type: 'feed', killer, victim: `DIRAC ${bot.id + 1}` });
+      }
       return { killed: true, hp: 0 };
     }
     this.updateBar(bot);
@@ -410,15 +456,17 @@ export class BotSquad {
     return hitCount;
   }
 
-  /** Tiro do jogador ecoou — bots dentro do alcance de audição entram em alerta. */
-  heardShot(playerPos: THREE.Vector3, now: number) {
+  /** Tiro CORO ecoou (jogador ou aliado) — bots no alcance entram em alerta. */
+  heardShot(pos: THREE.Vector3, now: number) {
     for (const b of this.bots) {
       if (b.phase !== 'patrol') continue;
       const d = Math.hypot(
-        b.group.position.x - playerPos.x,
-        b.group.position.z - playerPos.z
+        b.group.position.x - pos.x,
+        b.group.position.z - pos.z
       );
       if (d <= BOTS.HEAR_RANGE) {
+        b.soundX = pos.x;
+        b.soundZ = pos.z;
         b.phase = 'alert';
         b.phaseT = now;
         b.reactAt =
@@ -450,6 +498,9 @@ export class BotSquad {
       b.retakeChain = [];
       b.retakeWp = 0;
       b.stuckMs = 0;
+      b.targetIdx = -1;
+      b.soundX = 0;
+      b.soundZ = 0;
       b.group.visible = true;
       b.group.rotation.set(0, 0, 0);
       b.group.position.set(b.route[0][0], 0, b.route[0][1]);
@@ -512,15 +563,51 @@ export class BotSquad {
       // fora da fase de ação: fica parado (aguardando a rodada)
       if (!ctx.active) continue;
 
-      const dx = ctx.playerPos.x - b.group.position.x;
-      const dz = ctx.playerPos.z - b.group.position.z;
-      const dist = Math.hypot(dx, dz);
+      // --- percepção (com throttle): alvo CORO mais próximo visível ---
+      // (jogador OU aliado — Etapa 12; cego não enxerga)
+      if (!blinded && now - b.losT >= BOTS.LOS_EVERY_MS) {
+        b.losT = now;
+        let bestIdx = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < ctx.targets.length; i++) {
+          const t = ctx.targets[i];
+          if (!t.alive) continue;
+          const tdx = t.pos.x - b.group.position.x;
+          const tdz = t.pos.z - b.group.position.z;
+          const td = Math.hypot(tdx, tdz);
+          if (td > BOTS.PERCEIVE_RANGE || td >= bestD) continue;
+          if (!this.los(b, t.pos)) continue;
+          // saindo de patrulha exige cone de visão; já em combate, não
+          if (b.phase === 'patrol' && !this.inFov(b, tdx, tdz, td)) continue;
+          bestD = td;
+          bestIdx = i;
+        }
+        if (bestIdx >= 0) {
+          if (b.phase === 'patrol') {
+            b.phase = 'alert';
+            b.phaseT = now;
+            b.reactAt =
+              now +
+              BOTS.REACT_MIN_MS +
+              Math.random() * (BOTS.REACT_MAX_MS - BOTS.REACT_MIN_MS);
+          }
+          b.targetIdx = bestIdx;
+          b.lastSeen = now;
+        }
+      }
+
+      const target = b.targetIdx >= 0 ? ctx.targets[b.targetIdx] : null;
+      const dx = target ? target.pos.x - b.group.position.x : 0;
+      const dz = target ? target.pos.z - b.group.position.z : 0;
+      const dist = target ? Math.hypot(dx, dz) : 0;
 
       // --- Etapa 7: Diapasão plantado → todos correm para silenciar ---
+      // (Etapa 12: quem está em ALERTA não é sequestrado — um retake
+      // baleado luta de volta antes de retomar a corrida)
       if (
         ctx.plantPos &&
         !blinded &&
-        (b.phase === 'patrol' || b.phase === 'alert' || b.phase === 'engage')
+        (b.phase === 'patrol' || b.phase === 'engage')
       ) {
         b.phase = 'retake';
         b.phaseT = now;
@@ -537,26 +624,6 @@ export class BotSquad {
         b.retakeWp = 0;
         b.defuseK = 0;
         this.updateBar(b);
-      }
-
-      // --- percepção (com throttle) — cego não enxerga ---
-      if (!blinded && now - b.losT >= BOTS.LOS_EVERY_MS) {
-        b.losT = now;
-        if (
-          ctx.playerAlive &&
-          dist <= BOTS.PERCEIVE_RANGE &&
-          this.los(b, ctx.playerPos)
-        ) {
-          if (b.phase === 'patrol' && this.inFov(b, dx, dz, dist)) {
-            b.phase = 'alert';
-            b.phaseT = now;
-            b.reactAt =
-              now +
-              BOTS.REACT_MIN_MS +
-              Math.random() * (BOTS.REACT_MAX_MS - BOTS.REACT_MIN_MS);
-          }
-          b.lastSeen = now;
-        }
       }
 
       switch (b.phase) {
@@ -587,29 +654,37 @@ export class BotSquad {
         }
 
         case 'alert': {
-          // trava no jogador, esperando a reação terminar
+          // trava no alvo (ou na origem do som), esperando a reação
+          const ax = target ? dx : b.soundX - b.group.position.x;
+          const az = target ? dz : b.soundZ - b.group.position.z;
           b.group.rotation.y = angLerp(
             b.group.rotation.y,
-            Math.atan2(dx, dz),
+            Math.atan2(ax, az),
             Math.min(1, dt * 10)
           );
-          if (now - b.lastSeen > BOTS.LOSE_MS) {
+          if (now - b.lastSeen > BOTS.LOSE_MS && !target) {
             b.phase = ctx.plantPos ? 'retake' : 'patrol';
             break;
           }
           if (now >= b.reactAt) {
-            b.phase = 'engage';
-            b.phaseT = now;
-            b.shooting = false;
-            b.shotT = now + 120;
-            b.strafeT = 0;
+            if (target) {
+              b.phase = 'engage';
+              b.phaseT = now;
+              b.shooting = false;
+              b.shotT = now + 120;
+              b.strafeT = 0;
+            } else {
+              // ouviu algo que não vê: volta a patrulhar
+              b.phase = ctx.plantPos ? 'retake' : 'patrol';
+            }
           }
           break;
         }
 
         case 'engage': {
           if (blinded) break; // cego para de atirar e fica parado
-          if (!ctx.playerAlive || now - b.lastSeen > BOTS.LOSE_MS) {
+          if (!target || !target.alive || now - b.lastSeen > BOTS.LOSE_MS) {
+            b.targetIdx = -1;
             b.phase = ctx.plantPos ? 'retake' : 'patrol';
             break;
           }
@@ -640,7 +715,7 @@ export class BotSquad {
           // rajadas
           if (b.shooting) {
             if (now >= b.shotT) {
-              this.fireShot(b, now, dist, ctx);
+              this.fireShot(b, now, dist, ctx, target);
               b.burstLeft--;
               b.shotT = now + BOTS.SHOT_MS;
               if (b.burstLeft <= 0) {
@@ -751,8 +826,9 @@ export class BotSquad {
     this.syncInfo();
   }
 
-  /** Um tiro do bot: tracer, clarão e chance de acerto no jogador. */
-  private fireShot(b: Bot, now: number, dist: number, ctx: BotCtx) {
+  /** Um tiro do bot: tracer, clarão e chance de acerto no alvo CORO. */
+  private fireShot(b: Bot, now: number, dist: number, ctx: BotCtx, target: Combatant) {
+    const shooter = `DIRAC ${b.id + 1}`;
     // boca da arma: à frente do corpo, altura do peito
     const yaw = b.group.rotation.y;
     this.tmpA.set(
@@ -760,11 +836,11 @@ export class BotSquad {
       1.42,
       b.group.position.z + Math.cos(yaw) * 0.3
     );
-    // alvo: peito do jogador
-    this.tmpB.set(ctx.playerPos.x, ctx.playerPos.y - 0.25, ctx.playerPos.z);
+    // alvo: peito do CORO (jogador ou aliado)
+    this.tmpB.set(target.pos.x, target.pos.y - 0.25, target.pos.z);
 
     let acc = BOTS.ACC_BASE - dist * BOTS.ACC_PER_M;
-    if (ctx.playerMoving) acc -= BOTS.ACC_MOVE_PENALTY;
+    if (target.moving) acc -= BOTS.ACC_MOVE_PENALTY;
     acc = Math.max(0.08, Math.min(0.75, acc));
 
     if (Math.random() >= acc) {
@@ -775,13 +851,13 @@ export class BotSquad {
       this.tmpB.x += -this.tmpDir.z * side * miss;
       this.tmpB.z += this.tmpDir.x * side * miss;
       this.tmpB.y += (Math.random() - 0.4) * 0.5;
-      this.tmpB.addScaledVector(this.tmpDir, 5); // segue além do jogador
+      this.tmpB.addScaledVector(this.tmpDir, 5); // segue além do alvo
     }
 
     ctx.tracer(this.tmpA, this.tmpB);
     ctx.muzzle(this.tmpA);
     hudEvents.emit({ type: 'botShot', dist }); // Etapa 11: o estrondo abafado do DIRAC
-    if (Math.random() < acc) ctx.hitPlayer(BOTS.DMG);
+    if (Math.random() < acc) target.hit(BOTS.DMG, shooter);
   }
 
   /** Linha de visão livre entre os olhos do bot e o peito do jogador. */

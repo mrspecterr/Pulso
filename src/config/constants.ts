@@ -145,9 +145,9 @@ export const PLAYER_HP = 100;
 export const TARGET_HP = 100;
 export const TARGET_RESPAWN_MS = 3000;
 
-// --- operadores DIRAC (Etapa 6: bots) ---
+// --- operadores DIRAC (Etapa 6: bots · Etapa 12: 5v5) ---
 export const BOTS = {
-  COUNT: 3,
+  COUNT: 5,
   HP: 100,
   PATROL_SPEED: 1.5, // m/s entre waypoints
   STRAFE_SPEED: 1.9, // m/s deslocando em combate
@@ -167,6 +167,32 @@ export const BOTS = {
   ACC_MOVE_PENALTY: 0.14, // jogador em movimento
   LOS_EVERY_MS: 180, // intervalo entre checagens de visão
   LOSE_MS: 900, // sem te ver por isto → desiste
+} as const;
+
+// --- esquadrão CORO (Etapa 12: aliados IA 5v5) ---
+export const ALLIES = {
+  COUNT: 4,
+  HP: 100,
+  SPEED: 5.2, // m/s seguindo a formação
+  CATCHUP_SPEED: 6.4, // m/s quando ficou para trás
+  HOLD_SPEED: 4.4, // m/s indo defender o site
+  ENGAGE_DIST: 26, // enxerga um DIRAC até aqui (m)
+  REACT_MIN_MS: 300, // reação após avistar
+  REACT_MAX_MS: 560,
+  BURST_MIN: 3,
+  BURST_MAX: 5,
+  SHOT_MS: 130, // cadência dentro da rajada
+  PAUSE_MIN_MS: 750,
+  PAUSE_MAX_MS: 1300,
+  DMG: 20, // por acerto em um DIRAC
+  ACC_BASE: 0.55, // precisão a queima-roupa
+  ACC_PER_M: 0.014, // queda por metro
+  ACC_MOVE_PENALTY: 0.12, // alvo em movimento
+  LOS_EVERY_MS: 200,
+  LOSE_MS: 1000,
+  STRAFE_SPEED: 2.0, // m/s de strafe em combate
+  TELEPORT_DIST: 15, // ficou tão atrás do líder → reposiciona na formação
+  PING_MS: 2600, // intervalo do "pressentimento" do líder caído
 } as const;
 
 // --- Traços (Etapa 7/8) — números por kit ---

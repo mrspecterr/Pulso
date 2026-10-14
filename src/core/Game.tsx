@@ -12,6 +12,8 @@ import { Renderer } from 'expo-three';
 import { buildSubsolo } from '../scenes/SubsoloScene';
 import { TargetRange } from '../game/Targets';
 import { BotSquad } from '../game/Bots';
+import type { Combatant } from '../game/Bots';
+import { AllySquad, ALLY_NAMES } from '../game/Allies';
 import { RoundManager } from '../game/Round';
 import { sprayAt } from '../game/Legato';
 import { WeaponSystem } from '../game/Weapon';
@@ -151,6 +153,7 @@ function runGame(
   const bundle = buildSubsolo(scene);
   const range = new TargetRange(scene, TARGET_SPOTS);
   const squad = new BotSquad(scene, bundle.solids);
+  const allies = new AllySquad(scene, bundle.solids); // Etapa 12: esquadrão CORO
 
   // --- câmera (spawn CORO: sul do mapa, olhando para o norte/-Z) ---
   const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 220);
@@ -477,17 +480,20 @@ function runGame(
     bundle.clearPlant();
     range.reset();
     squad.reset();
+    allies.reset(); // Etapa 12: esquadrão de volta à formação
   };
 
   // --- gerente de rodadas ---
   const rounds = new RoundManager({
     onRoundStart: resetPlayerForRound,
     onPlanted: (site) => bundle.plant(site),
+    // Etapa 12: o CORO segue em campo enquanto restar alguém vivo
+    coroAlive: () => playerVitals.hp > 0 || allies.info.alive > 0,
   });
 
   // dano do bot acertando o jogador: COURAÇA (temporal) e traje absorvem,
-  // HUD pisca, morte encerra
-  const hitPlayer = (dmg: number) => {
+  // HUD pisca, morte encerra — a menos que o esquadrão ainda lute (Etapa 12)
+  const hitPlayer = (dmg: number, killer: string) => {
     if (playerVitals.hp <= 0) return;
     let left = dmg;
     if (playerVitals.shieldBonus > 0) {
@@ -502,8 +508,44 @@ function runGame(
     }
     playerVitals.hp = Math.max(0, playerVitals.hp - left);
     hudEvents.emit({ type: 'playerHit', dmg, hp: playerVitals.hp });
-    if (playerVitals.hp <= 0) rounds.killPlayer();
+    if (playerVitals.hp <= 0) {
+      hudEvents.emit({ type: 'feed', killer, victim: 'VOCÊ' });
+      rounds.killPlayer();
+    }
   };
+
+  // --- combatentes 5v5 (Etapa 12) — posições vivas por referência ---
+  // O que os DIRACs veem: o jogador + os aliados CORO.
+  const playerCombatant: Combatant = {
+    pos: camera.position,
+    moving: false,
+    alive: true,
+    isPlayer: true,
+    hit: (dmg, killer) => hitPlayer(dmg, killer),
+  };
+  const allyCombatants: Combatant[] = ALLY_NAMES.map((_, i) => ({
+    pos: allies.posOf(i),
+    moving: false,
+    alive: true,
+    isPlayer: false,
+    hit: (dmg, killer) => {
+      allies.damage(allies.byIndex(i), dmg, killer);
+    },
+  }));
+  const coroTargets = [playerCombatant, ...allyCombatants];
+  // O que os aliados veem: os operadores DIRAC.
+  const diracTargets: Combatant[] = squad.info.list.map(
+    (bi) =>
+      ({
+        pos: squad.posOf(bi.id),
+        moving: false,
+        alive: true,
+        isPlayer: false,
+        hit: (dmg, killer) => {
+          squad.damage(squad.byId(bi.id), dmg, false, killer);
+        },
+      }) as Combatant
+  );
 
   const startReload = (nowMs: number) => {
     const W = WEAPONS[roundState.weapon];
@@ -583,6 +625,11 @@ function runGame(
         gameStats.kills++;
         rounds.payKill(); // economia: abate paga dB na fase de ação
         hudEvents.emit({ type: 'kill', head: isHead });
+        hudEvents.emit({
+          type: 'feed',
+          killer: 'VOCÊ',
+          victim: `DIRAC ${(ud.botId ?? 0) + 1}`,
+        });
       } else {
         hudEvents.emit({ type: 'hit', head: isHead });
       }
@@ -748,12 +795,9 @@ function runGame(
       // operadores DIRAC (apenas na fase de ação)
       squad.update(dt, now, {
         camera,
-        playerPos: camera.position,
-        playerAlive,
+        targets: coroTargets,
         active: roundState.phase === 'live',
-        playerMoving: moved,
         blocked,
-        hitPlayer,
         tracer: spawnTracer,
         muzzle: (p) => {
           muzzleLight.position.copy(p);
@@ -768,6 +812,53 @@ function runGame(
       gameStats.enemiesAlive = squad.info.alive;
       gameStats.defusing = squad.info.defusing;
       gameStats.defuseProgress = squad.info.defuseProgress;
+
+      // esquadrão CORO (Etapa 12) — flags vivas dos combatentes primeiro
+      playerCombatant.moving = moved;
+      playerCombatant.alive = playerAlive;
+      allyCombatants.forEach((c, i) => {
+        c.moving = allies.info.list[i].walking;
+        c.alive = allies.info.list[i].alive;
+      });
+      diracTargets.forEach((c, i) => {
+        c.moving = false;
+        c.alive = squad.isAlive(i);
+      });
+      allies.update(dt, now, {
+        camera,
+        playerPos: camera.position,
+        playerYaw: lookState.yaw,
+        playerAlive,
+        active: roundState.phase === 'live',
+        targets: diracTargets,
+        blocked,
+        tracer: spawnTracer,
+        muzzle: (p) => {
+          muzzleLight.position.copy(p);
+          muzzleLight.intensity = 10;
+          muzzleUntil = now + MUZZLE_MS;
+        },
+        plantPos: roundState.planted && roundState.plantSite
+          ? siteVec[roundState.plantSite]
+          : null,
+        onAllyShot: (pos, distToPlayer) => {
+          // o tiro do aliado ecoa: DIRACs próximos se alertam e o jogador
+          // escuta o estrondo distante
+          squad.heardShot(pos, now);
+          hudEvents.emit({ type: 'botShot', dist: distToPlayer });
+        },
+      });
+      gameStats.alliesAlive = allies.info.alive;
+      gameStats.allyMask = allies.info.list.map((l) => (l.alive ? '1' : '0')).join('');
+
+      // desfechos 5v5 (Etapa 12): varrida DIRAC = ponto CORO; CORO
+      // aniquilado (jogador + aliados) = ponto DIRAC
+      if (roundState.phase === 'live' && squad.info.alive === 0) {
+        rounds.sweep();
+      }
+      if (roundState.phase === 'live' && !playerAlive && allies.info.alive === 0) {
+        rounds.killPlayer();
+      }
 
       // Traços pedidos pelo HUD (Etapa 7/8)
       if (inputState.tracoQueued) {

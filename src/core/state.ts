@@ -41,7 +41,9 @@ export const gameStats = {
   hits: 0,
   kills: 0,
   headshots: 0,
-  enemiesAlive: 3, // operadores DIRAC em campo (Etapa 6)
+  enemiesAlive: 5, // operadores DIRAC em campo (Etapa 6 · 5 na Etapa 12)
+  alliesAlive: 4, // esquadrão CORO em campo (Etapa 12)
+  allyMask: '1111', // quem está vivo: '1010' = 1º e 3º caídos
   defusing: false, // um DIRAC está silenciando o Diapasão (Etapa 7)
   defuseProgress: 0, // 0..1 do canal de silenciamento
   fps: 0, // média móvel do quadro (Etapa 10: diagnóstico de desempenho)
@@ -97,8 +99,9 @@ export const roundState = {
   plantProgress: 0, // 0..1 do canal de plantio
   inSite: null as 'A' | 'B' | null, // site em que o jogador está
   chargeEndsAt: 0, // timestamp de conclusão do PULSO
-  outcome: null as 'pulse' | 'time' | 'elim' | 'silenced' | null, // resultado em 'end'
+  outcome: null as 'pulse' | 'time' | 'elim' | 'silenced' | 'sweep' | null, // resultado em 'end'
   matchWinner: null as 'CORO' | 'DIRAC' | null,
+  spectating: false, // jogador caído, o esquadrão luta por ele (Etapa 12)
 };
 
 // Visual do joystick (Etapa 10): valores Animated module-level — a camada
@@ -124,13 +127,14 @@ export type HudEvent =
   | { type: 'planted'; site: 'A' | 'B' }
   | { type: 'playerHit'; dmg: number; hp: number }
   | { type: 'traco'; kind: TracoKey } // Traço executado (Etapa 7/8)
-  | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim' | 'silenced'; coro: number; dirac: number; dB: number }
+  | { type: 'roundEnd'; outcome: 'pulse' | 'time' | 'elim' | 'silenced' | 'sweep'; coro: number; dirac: number; dB: number }
   | { type: 'matchOver'; winner: 'CORO' | 'DIRAC' }
   | { type: 'backToSelect' } // partida encerrada → seleção de agente (Etapa 8)
   | { type: 'plantTick' } // canal de plantio em andamento (Etapa 11)
-  | { type: 'botShot'; dist: number } // um DIRAC disparou a esta distância (Etapa 11)
+  | { type: 'botShot'; dist: number } // um DIRAC/aliado disparou a esta distância (Etapa 11/12)
   | { type: 'dry' } // gatilho no vazio (Etapa 11)
-  | { type: 'reloadDone' } // recarga concluída (Etapa 11);
+  | { type: 'reloadDone' } // recarga concluída (Etapa 11)
+  | { type: 'feed'; killer: string; victim: string } // kill feed 5v5 (Etapa 12);
 
 // Mini event-bus para efeitos do HUD (pulso da mira, hitmarker etc.)
 export const hudEvents = (() => {

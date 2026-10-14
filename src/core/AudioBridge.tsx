@@ -89,6 +89,10 @@ export default function AudioBridge() {
             SFX.play('detonate', 1);
             setTimeout(() => SFX.play('round_win', 0.9), 1500);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          } else if (e.outcome === 'sweep') {
+            // Etapa 12: varrida DIRAC — vitória limpa do esquadrão
+            SFX.play('round_win', 0.9);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           } else {
             if (e.outcome === 'silenced') SFX.play('silenced', 0.9);
             setTimeout(() => SFX.play('round_lose', 0.9), e.outcome === 'silenced' ? 700 : 250);

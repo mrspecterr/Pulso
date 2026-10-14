@@ -8,6 +8,9 @@
 //          Diapasão silenciado por um DIRAC → ponto DIRAC (Etapa 7)
 //   end  → banner do resultado (5s)
 //   over → partida encerrada (primeiro a 7)
+//
+// Etapa 12 (5v5): o jogador abatido não encerra mais a rodada — entra
+// em ESPECTADOR e o esquadrão CORO luta por ele (sweep = varrida DIRAC).
 
 import { ECONOMY, ROUND } from '../config/constants';
 import { gameStats, hudEvents, inputState, playerVitals, roundState } from '../core/state';
@@ -17,6 +20,8 @@ interface Hooks {
   onRoundStart: () => void;
   /** chamado quando o Diapasão é plantado com sucesso */
   onPlanted: (site: 'A' | 'B') => void;
+  /** ainda há alguém do CORO em campo? (jogador OU aliados — Etapa 12) */
+  coroAlive: () => boolean;
 }
 
 export class RoundManager {
@@ -51,6 +56,7 @@ export class RoundManager {
     roundState.plantProgress = 0;
     roundState.inSite = null;
     roundState.outcome = null;
+    roundState.spectating = false; // Etapa 12
     gameStats.defusing = false;
     gameStats.defuseProgress = 0;
     playerVitals.hp = 100;
@@ -142,10 +148,25 @@ export class RoundManager {
     this.hooks.onPlanted(site);
   }
 
-  /** Jogador abatido em combate — encerra a rodada com ponto DIRAC. */
+  /**
+   * Jogador abatido em combate (Etapa 12): se o esquadrão ainda tem
+   * gente em campo, a rodada SEGUE com o jogador em espectador — os
+   * aliados podem vencer por varrida ou protegendo a carga plantada.
+   * Sem aliados vivos: ponto DIRAC na hora.
+   */
   killPlayer() {
-    if (roundState.phase === 'live') {
+    if (roundState.phase !== 'live') return;
+    if (this.hooks.coroAlive()) {
+      roundState.spectating = true;
+    } else {
       this.endRound('elim');
+    }
+  }
+
+  /** Todos os operadores DIRAC caíram — varrida CORO (Etapa 12). */
+  sweep() {
+    if (roundState.phase === 'live') {
+      this.endRound('sweep');
     }
   }
 
@@ -156,12 +177,12 @@ export class RoundManager {
     }
   }
 
-  private endRound(outcome: 'pulse' | 'time' | 'elim' | 'silenced') {
+  private endRound(outcome: 'pulse' | 'time' | 'elim' | 'silenced' | 'sweep') {
     roundState.phase = 'end';
     roundState.outcome = outcome;
     roundState.phaseEndsAt = performance.now() + ROUND.END_MS;
 
-    if (outcome === 'pulse') {
+    if (outcome === 'pulse' || outcome === 'sweep') {
       roundState.scoreCORO++;
       roundState.dB += ECONOMY.WIN_DB;
     } else {

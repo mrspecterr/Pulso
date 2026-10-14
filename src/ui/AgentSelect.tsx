@@ -75,7 +75,7 @@ export default function AgentSelect({ onPick }: { onPick: (a: AgentId) => void }
         <Text style={styles.goTxt}>ENTRAR NO SUBSOLO COM {A.nome}</Text>
       </Pressable>
       <Text style={styles.foot}>
-        primeiro a {ROUND.ROUNDS_TO_WIN} rodadas · a escolha vale a partida
+        5v5 no subsolo · primeiro a {ROUND.ROUNDS_TO_WIN} rodadas vence · a escolha vale a partida
       </Text>
     </View>
   );

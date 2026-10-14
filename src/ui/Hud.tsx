@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { AGENTS, BTN, CSS, PLAYER_HP, QUALITY, WEAPONS } from '../config/constants';
+import { ALLY_NAMES } from '../game/Allies';
 import {
   gameStats,
   lookState,
@@ -17,6 +18,7 @@ import DamageVignette from './DamageVignette';
 import FireButton from './FireButton';
 import Hitmarker from './Hitmarker';
 import Joystick from './Joystick';
+import KillFeed from './KillFeed';
 import MatchOver from './MatchOver';
 import PlantButton from './PlantButton';
 import ReloadButton from './ReloadButton';
@@ -44,12 +46,15 @@ interface Snap {
   planted: boolean;
   inSite: 'A' | 'B' | null;
   plantProgress: number;
-  outcome: 'pulse' | 'time' | 'elim' | 'silenced' | null;
+  outcome: 'pulse' | 'time' | 'elim' | 'silenced' | 'sweep' | null;
   matchWinner: 'CORO' | 'DIRAC' | null;
   hp: number;
   shield: number;
   shieldBonus: number; // escudo temporal da COURAÇA (GRAVE, Etapa 8)
   enemies: number; // operadores DIRAC em campo
+  allies: number; // esquadrão CORO em campo (Etapa 12)
+  allyMask: string; // '1011': 1º e 3º caídos (Etapa 12)
+  spectating: boolean; // jogador caído, assistindo o esquadrão (Etapa 12)
   defusing: boolean; // um DIRAC silenciando o Diapasão (Etapa 7)
   defuseProgress: number; // 0..1 do canal
   secLeft: number; // segundos da fase/carga atual
@@ -90,6 +95,9 @@ function readState(): Snap {
     shield: playerVitals.shield,
     shieldBonus: playerVitals.shieldBonus,
     enemies: gameStats.enemiesAlive,
+    allies: gameStats.alliesAlive,
+    allyMask: gameStats.allyMask,
+    spectating: roundState.spectating,
     defusing: gameStats.defusing,
     defuseProgress: gameStats.defuseProgress,
     secLeft: Math.max(0, Math.ceil((end - now) / 1000)),
@@ -117,7 +125,6 @@ export default function Hud() {
   const [s, setS] = useState<Snap>(() => readState());
   // kit fixo da partida — o HUD lê direto da sessão (Etapa 8)
   const A = AGENTS[sessionState.agent];
-  const tracoHint = A.tracos.map((t) => `${t.glyph} ${t.label}`).join(' · ');
   const shieldTotal = s.shield + s.shieldBonus;
 
   useEffect(() => {
@@ -137,7 +144,7 @@ export default function Hud() {
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
-          RODADA {s.roundNum} · v0.11
+          RODADA {s.roundNum} · v0.12
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}
@@ -149,6 +156,20 @@ export default function Hud() {
             <Text style={styles.chipTxt}>◈ DIAPASÃO</Text>
           </View>
         ) : null}
+        {/* esquadrão CORO em campo (Etapa 12) */}
+        <View style={styles.squadRow}>
+          {ALLY_NAMES.map((n, i) => {
+            const up = s.allyMask[i] === '1';
+            return (
+              <Text
+                key={n}
+                style={[styles.squadName, up ? styles.squadUp : styles.squadDown]}
+              >
+                {n}
+              </Text>
+            );
+          })}
+        </View>
       </View>
 
       {/* ==== topo centro: placar + fase + timer ==== */}
@@ -177,6 +198,10 @@ export default function Hud() {
           >
             {mmss(s.secLeft)}
           </Text>
+        ) : null}
+        {/* jogador caído: o esquadrão luta por ele (Etapa 12) */}
+        {s.phase === 'live' && s.spectating ? (
+          <Text style={styles.specBanner}>NEUTRALIZADO — SEU ESQUADRÃO LUTA</Text>
         ) : null}
         {/* vitais: hp + escudo */}
         <View style={styles.vitals}>
@@ -224,7 +249,9 @@ export default function Hud() {
       {s.phase === 'buy' ? (
         <View style={styles.bc}>
           <Text style={styles.hint}>compre equipamento e confirme PRONTO</Text>
-          <Text style={styles.hintDim}>abates rendem +200 dB · Traços: {tracoHint}</Text>
+          <Text style={styles.hintDim}>
+            abates rendem +200 dB · seu esquadrão (4) segue você · 5 DIRAC defendem
+          </Text>
         </View>
       ) : null}
       {s.phase === 'live' && !s.planted ? (
@@ -261,17 +288,24 @@ export default function Hud() {
       {/* ==== banner de fim de rodada ==== */}
       {s.phase === 'end' && s.outcome ? (
         <View style={styles.banner}>
-          <Text style={[styles.bannerTitle, s.outcome === 'pulse' ? styles.teal : styles.magenta]}>
+          <Text
+            style={[
+              styles.bannerTitle,
+              s.outcome === 'pulse' || s.outcome === 'sweep' ? styles.teal : styles.magenta,
+            ]}
+          >
             {s.outcome === 'pulse'
               ? 'PULSO ESTABELECIDO'
               : s.outcome === 'elim'
-                ? 'VOCÊ FOI ELIMINADO'
+                ? 'ESQUADRÃO CORO ELIMINADO'
                 : s.outcome === 'silenced'
                   ? 'DIAPASÃO SILENCIADO'
-                  : 'TEMPO ESGOTADO'}
+                  : s.outcome === 'sweep'
+                    ? 'DIRAC VARRIDO DO MAPA'
+                    : 'TEMPO ESGOTADO'}
           </Text>
           <Text style={styles.bannerSub}>
-            ponto para {s.outcome === 'pulse' ? 'CORO' : 'DIRAC'} · próxima rodada em {s.secLeft}s
+            ponto para {s.outcome === 'pulse' || s.outcome === 'sweep' ? 'CORO' : 'DIRAC'} · próxima rodada em {s.secLeft}s
           </Text>
         </View>
       ) : null}
@@ -320,6 +354,8 @@ export default function Hud() {
       <DamageVignette />
       {/* feedback dos Traços (sempre montado; invisível quando parado) */}
       <TracoFlash />
+      {/* feed de abates do 5v5 (Etapa 12) */}
+      <KillFeed />
     </View>
   );
 }
@@ -352,6 +388,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   chipTxt: { fontFamily: MONO, fontSize: 9, letterSpacing: 2, color: CSS.TEAL },
+  squadRow: { flexDirection: 'row', marginTop: 7 },
+  squadName: { fontFamily: MONO, fontSize: 8, letterSpacing: 1, marginRight: 7 },
+  squadUp: { color: CSS.TEAL },
+  squadDown: { color: 'rgba(122,139,153,0.4)', textDecorationLine: 'line-through' },
+  specBanner: {
+    fontFamily: MONO,
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    color: CSS.MAGENTA,
+    marginTop: 5,
+  },
   scoreRow: { flexDirection: 'row', alignItems: 'center' },
   scoreSide: { alignItems: 'center', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 4 },
   coroSide: { backgroundColor: 'rgba(45,226,198,0.12)', borderColor: 'rgba(45,226,198,0.4)', borderWidth: 1 },
