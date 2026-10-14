@@ -1,0 +1,378 @@
+// HomeScreen (Etapa 15) — o HUB do PULSO, no padrão dos grandes: a splash
+// art do operador selecionado dominando a tela, perfil e carreira reais no
+// topo, coluna de módulos à esquerda, o botão JOGAR respirando no centro
+// e o seletor de mapa ao lado. Tudo persiste no perfil do jogador.
+import React, { useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AGENTS, CSS, ROUND, type AgentId } from '../config/constants';
+import { MAPS, type MapId } from '../config/maps';
+import { ART } from './art';
+import { FadeSlide, MenuButton, MONO, Pulsing, XpBar } from './parts';
+import { careerXp, getProfile, levelInfo, rankTitle, saveProfile } from './profile';
+import { sessionState } from '../core/state';
+import { SFX } from '../game/Audio';
+
+const MAP_ORDER: MapId[] = ['SUBSOLO', 'PALCO'];
+
+export default function HomeScreen({
+  onPlay,
+  onAgents,
+  onSettings,
+}: {
+  onPlay: () => void;
+  onAgents: () => void;
+  onSettings: () => void;
+}) {
+  const [briefing, setBriefing] = useState(false);
+  const [mapTick, setMapTick] = useState(0); // re-render quando troca o mapa
+  const profile = getProfile();
+  const agent = profile.agent;
+  const A = AGENTS[agent];
+  const M = MAPS[profile.map];
+  const xp = careerXp(profile.career);
+  const { level, into, need } = levelInfo(xp);
+  const c = profile.career;
+
+  const cycleMap = () => {
+    const i = MAP_ORDER.indexOf(sessionState.map);
+    const next = MAP_ORDER[(i + 1) % MAP_ORDER.length] as MapId;
+    sessionState.map = next;
+    SFX.play('ui', 0.45);
+    saveProfile();
+    setMapTick((t) => t + 1); // re-render com o mapa novo
+  };
+  void mapTick; // leitura explícita (evita warning de variável não usada)
+
+  return (
+    <View style={hs.root}>
+      {/* splash art do operador — o herói do lobby */}
+      <Image key={agent} source={ART[agent]} style={hs.art} resizeMode="cover" />
+      {/* leitura: escurece a esquerda (menus) e o rodapé */}
+      <LinearGradient
+        colors={['rgba(7,10,15,0.96)', 'rgba(7,10,15,0.78)', 'rgba(7,10,15,0.12)']}
+        locations={[0, 0.44, 0.78]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={hs.art}
+      />
+      <LinearGradient
+        colors={['rgba(7,10,15,0)', 'rgba(7,10,15,0.85)']}
+        locations={[0.72, 1]}
+        style={hs.art}
+      />
+
+      {/* ---- topo: perfil (esq) · engrenagem (dir) ---- */}
+      <View style={hs.topRow}>
+        <FadeSlide delay={80}>
+          <View style={hs.profile}>
+            <View style={[hs.avatar, { borderColor: A.corCss }]}>
+              <Text style={[hs.avatarTxt, { color: A.corCss }]}>{agent[0]}</Text>
+            </View>
+            <View>
+              <Text style={hs.profileName}>OPERADOR</Text>
+              <Text style={hs.profileRank}>
+                NV {level} · {rankTitle(level)}
+              </Text>
+              <XpBar into={into} need={need} width={124} />
+            </View>
+          </View>
+        </FadeSlide>
+
+        <FadeSlide delay={140}>
+          <Pressable style={hs.gear} onPress={() => { SFX.play('ui', 0.45); onSettings(); }}>
+            <Text style={hs.gearGlyph}>⚙</Text>
+          </Pressable>
+        </FadeSlide>
+      </View>
+
+      {/* ---- coluna esquerda: módulos ---- */}
+      <View style={hs.menuCol}>
+        <FadeSlide delay={220}>
+          <MenuButton
+            glyph="◈"
+            label="AGENTES"
+            sub={`operador atual: ${agent}`}
+            accent={A.corCss}
+            onPress={() => { SFX.play('ui', 0.45); onAgents(); }}
+          />
+        </FadeSlide>
+        <FadeSlide delay={300}>
+          <MenuButton
+            glyph="☰"
+            label="BRIEFING"
+            sub="como jogar PULSO"
+            onPress={() => { SFX.play('ui', 0.45); setBriefing(true); }}
+          />
+        </FadeSlide>
+        <FadeSlide delay={380}>
+          <MenuButton
+            glyph="⚙"
+            label="AJUSTES"
+            sub="sens · gráficos · som"
+            onPress={() => { SFX.play('ui', 0.45); onSettings(); }}
+          />
+        </FadeSlide>
+      </View>
+
+      {/* ---- assinatura do operador, sobre a arte ---- */}
+      <View style={hs.agentSign}>
+        <Text style={[hs.agentName, { color: A.corCss, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 10 }]}>
+          {agent}
+        </Text>
+        <View style={[hs.agentRole, { borderColor: A.corCss }]}>
+          <Text style={[hs.agentRoleTxt, { color: A.corCss }]}>{A.funcao}</Text>
+        </View>
+      </View>
+
+      {/* ---- centro-baixo: mapa + JOGAR ---- */}
+      <View style={hs.playBlock}>
+        <FadeSlide delay={460}>
+          <Pressable style={hs.mapChip} onPress={cycleMap}>
+            <Text style={hs.mapArrow}>◂</Text>
+            <Text style={[hs.mapName, { color: M.corCss }]}>{M.nome}</Text>
+            <Text style={hs.mapArrow}>▸</Text>
+          </Pressable>
+        </FadeSlide>
+
+        <FadeSlide delay={540}>
+          <Pulsing>
+            <Pressable
+              style={({ pressed }) => [hs.play, pressed && hs.playP]}
+              onPress={() => { SFX.play('ui', 0.8); onPlay(); }}
+            >
+              <Text style={hs.playTxt}>JOGAR</Text>
+              <Text style={hs.playSub}>
+                PARTIDA 5v5 · PRIMEIRO A {ROUND.ROUNDS_TO_WIN}
+              </Text>
+            </Pressable>
+          </Pulsing>
+        </FadeSlide>
+      </View>
+
+      {/* ---- rodapé: temporada · carreira ---- */}
+      <View style={hs.footer}>
+        <Text style={hs.footSeason}>TEMPORADA 1 · RISSONÂNCIA</Text>
+        <Text style={hs.footCareer}>
+          {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
+        </Text>
+        <Text style={hs.footVer}>v0.15 · mrspecterr/Pulso</Text>
+      </View>
+
+      {/* ---- briefing: como jogar ---- */}
+      {briefing && (
+        <View style={hs.briefWrap} pointerEvents="box-none">
+          <Pressable style={hs.briefShade} onPress={() => setBriefing(false)} />
+          <View style={hs.briefPanel}>
+            <Text style={hs.briefTitle}>BRIEFING · OPERAÇÃO RISSONÂNCIA</Text>
+            <ScrollView style={hs.briefScroll}>
+              <Text style={hs.briefH}>OBJETIVO</Text>
+              <Text style={hs.briefP}>
+                CORO contra DIRAC, 5 contra 5. Plante o DIAPASÃO no site A ou B e proteja a
+                carga até a detonação — ou elimine todo o esquadrão inimigo. Primeiro a{' '}
+                {ROUND.ROUNDS_TO_WIN} rodadas vence a partida.
+              </Text>
+              <Text style={hs.briefH}>A RODADA</Text>
+              <Text style={hs.briefP}>
+                Compra (10s): gaste seus decibéis em armas e trajes e aperte PRONTO. Ação
+                (75s): infiltre-se até um site. Carga (40s): o Diapasão plantado canta cada
+                vez mais rápido até o PULSO final.
+              </Text>
+              <Text style={hs.briefH}>O DIAPASÃO</Text>
+              <Text style={hs.briefP}>
+                Parado dentro da moldura do site, segure PLANTAR por 3,5s. Andar cancela o
+                canal. Se você cair carregando, o aliado mais próximo resgata a carga e
+                conclui a missão por você.
+              </Text>
+              <Text style={hs.briefH}>ECONOMIA</Text>
+              <Text style={hs.briefP}>
+                Comece com 800 dB. Abate +200 · plantar +300 · vitória +2900 · derrota
+                +1900. Perder a rodada também custa a arma na mão — às vezes vale poupar
+                para comprar o LEGATO na rodada seguinte.
+              </Text>
+              <Text style={hs.briefH}>CONTROLES</Text>
+              <Text style={hs.briefP}>
+                Joystick esquerdo move; arraste a metade direita para mirar; o botão de fogo
+                aceita arrastar (mire enquanto atira). Os dois TRAÇOS do operador ficam
+                empilhados à direita; recarregue acima da munição.
+              </Text>
+              <Text style={hs.briefP}>
+                DIRACs se adaptam: cada ponto deles no placar deixa o inimigo mais afiado.
+                O minimapa não é wallhack — inimigos só acendem ao atirar, ao levar dano
+                ou sob SONAR.
+              </Text>
+            </ScrollView>
+            <Pressable style={hs.briefClose} onPress={() => { SFX.play('ui', 0.45); setBriefing(false); }}>
+              <Text style={hs.briefCloseTxt}>ENTENDIDO</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const hs = StyleSheet.create({
+  root: { flex: 1, backgroundColor: CSS.BG },
+  art: { position: 'absolute', width: '100%', height: '100%' },
+
+  // -- topo --
+  topRow: {
+    position: 'absolute',
+    top: 12,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  profile: { flexDirection: 'row', alignItems: 'center' },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    backgroundColor: 'rgba(11,15,20,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+  avatarTxt: { fontFamily: MONO, fontSize: 18, fontWeight: 'bold' },
+  profileName: { fontFamily: MONO, fontSize: 13, fontWeight: 'bold', letterSpacing: 3, color: '#E8F4F8' },
+  profileRank: { fontFamily: MONO, fontSize: 8, letterSpacing: 2, color: CSS.TEXT_DIM, marginTop: 1 },
+  gear: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(122,139,153,0.35)',
+    backgroundColor: 'rgba(11,15,20,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gearGlyph: { fontFamily: MONO, fontSize: 17, color: '#CFE2EA' },
+
+  // -- coluna esquerda --
+  menuCol: {
+    position: 'absolute',
+    left: 14,
+    top: 76,
+  },
+
+  // -- assinatura do agente (direita-baixo, sobre a arte) --
+  agentSign: { position: 'absolute', right: 18, bottom: 64, alignItems: 'flex-end' },
+  agentName: {
+    fontFamily: MONO,
+    fontSize: 30,
+    fontWeight: 'bold',
+    letterSpacing: 10,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  agentRole: {
+    borderRadius: 5,
+    borderWidth: 1,
+    backgroundColor: 'rgba(7,10,15,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  agentRoleTxt: { fontFamily: MONO, fontSize: 8.5, letterSpacing: 3 },
+
+  // -- bloco de jogo (centro-baixo) --
+  playBlock: {
+    position: 'absolute',
+    bottom: 44,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  mapChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(122,139,153,0.35)',
+    backgroundColor: 'rgba(11,15,20,0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 9,
+  },
+  mapArrow: { fontFamily: MONO, fontSize: 11, color: CSS.TEXT_DIM, marginHorizontal: 8 },
+  mapName: { fontFamily: MONO, fontSize: 11, fontWeight: 'bold', letterSpacing: 3 },
+  play: {
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: CSS.TEAL,
+    backgroundColor: 'rgba(45,226,198,0.16)',
+    paddingHorizontal: 46,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  playP: { backgroundColor: 'rgba(45,226,198,0.4)' },
+  playTxt: {
+    fontFamily: MONO,
+    fontSize: 22,
+    fontWeight: 'bold',
+    letterSpacing: 12,
+    color: CSS.TEAL,
+    textShadowColor: 'rgba(45,226,198,0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 18,
+    marginRight: -12,
+  },
+  playSub: { fontFamily: MONO, fontSize: 8, letterSpacing: 3, color: '#BFE9DF', marginTop: 3 },
+
+  // -- rodapé --
+  footer: {
+    position: 'absolute',
+    bottom: 10,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  footSeason: { fontFamily: MONO, fontSize: 8.5, letterSpacing: 2, color: CSS.TEAL },
+  footCareer: { fontFamily: MONO, fontSize: 8, letterSpacing: 1, color: CSS.TEXT_DIM },
+  footVer: { fontFamily: MONO, fontSize: 8, letterSpacing: 1, color: CSS.TEXT_DIM },
+
+  // -- briefing --
+  briefWrap: { position: 'absolute', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  briefShade: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(4,6,10,0.78)',
+  },
+  briefPanel: {
+    width: 460,
+    maxHeight: '82%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(45,226,198,0.4)',
+    backgroundColor: 'rgba(9,13,18,0.97)',
+    padding: 14,
+  },
+  briefTitle: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: 'bold',
+    letterSpacing: 3,
+    color: CSS.TEAL,
+    marginBottom: 8,
+  },
+  briefScroll: { marginBottom: 8 },
+  briefH: { fontFamily: MONO, fontSize: 9, fontWeight: 'bold', letterSpacing: 3, color: '#CFE2EA', marginTop: 8 },
+  briefP: { fontFamily: MONO, fontSize: 9, color: '#9FB4C2', lineHeight: 14, marginTop: 2 },
+  briefClose: {
+    alignSelf: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: CSS.TEAL,
+    backgroundColor: 'rgba(45,226,198,0.14)',
+    paddingHorizontal: 22,
+    paddingVertical: 6,
+  },
+  briefCloseTxt: { fontFamily: MONO, fontSize: 10, fontWeight: 'bold', letterSpacing: 3, color: CSS.TEAL },
+});

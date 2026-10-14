@@ -131,7 +131,8 @@ export default React.memo(function InputLayer({ active }: Props) {
   };
 
   const cycleSens = () => {
-    const order = [1, 1.5, 2];
+    // Etapa 15: BAIXA entra no ciclo (0.7×) — quatro passos no HUD e no hub
+    const order = [0.7, 1, 1.5, 2];
     const i = order.indexOf(settings.sensMultiplier);
     settings.sensMultiplier = order[(i + 1) % order.length];
   };

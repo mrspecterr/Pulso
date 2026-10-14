@@ -7,7 +7,7 @@
 
 import { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { hudEvents, roundState } from './state';
+import { hudEvents, roundState, settings } from './state';
 import { SFX } from '../game/Audio';
 
 const HAPTIC_MIN_MS = 130; // intervalo mínimo entre vibrações
@@ -18,6 +18,7 @@ export default function AudioBridge() {
     let lastHaptic = 0;
 
     const buzz = (style: Haptics.ImpactFeedbackStyle) => {
+      if (!settings.haptics) return; // Etapa 15: interruptor do jogador
       const now = performance.now();
       if (now - lastHaptic < HAPTIC_MIN_MS) return;
       lastHaptic = now;

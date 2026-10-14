@@ -30,6 +30,13 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Cliente de jogo real (v0.15)** — entrada, hub e telas no padrão dos grandes (Free Fire, Wild Rift, Mobile Legends):
+  - **Splash de entrada** — a estação vazia na neblina, o logo respirando e o equalizador de ressonância vivo; toque para entrar (o perfil carrega nesse tempo)
+  - **HUB** — a **splash art do operador selecionado** dominando a tela (arte ilustrada por personagem), perfil com **nível/XP e patente reais** (RECRUTA → LENDA DO SUBSOLO — sobem jogando), carreira no rodapé, coluna de módulos (AGENTES · BRIEFING · AJUSTES), seletor de mapa e o botão **JOGAR** respirando no centro
+  - **Galeria de operadores** — cada CORO com arte própria em destaque, crossfade ao trocar, dossiê com bio, Traços e papel tático
+  - **Ajustes** — sensibilidade (BAIXA · PADRÃO · ALTA · MÁXIMA), gráficos, áudio, **vibração** e zerar dados — tudo persistido
+  - **Perfil persistente (AsyncStorage)** — agente e mapa favoritos, configurações e carreira (partidas, vitórias, abates, headshots, precisão, recorde de abates) sobrevivem ao fechar o app
+  - **BRIEFING** — o manual da Operação Rissonância dentro do hub (objetivo, fases, economia, controles)
 - **Agentes CORO (v0.8)** — escolha o operador antes da partida; cada kit tem dois Traços e uma velocidade própria:
   - **MUDO · TÁTICO** — ◈ CENZURA cega operadores com linha de visão · ▤ BARREIRA ergue muro de ressonância
   - **ECO · BATEDORA** (+10% velocidade) — ⇢ IMPULSO arremesso de 8,5m · ◎ SONAR revela inimigos através de paredes
@@ -65,7 +72,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **12** — Esquadrão 5v5: aliados CORO com IA (formação, combate, defesa do site, caça), DIRACs revidando no retake, kill feed, espectador e varrida
 - [x] **13** — Polimento e equilíbrio: minimapa tático, dificuldade escalonada dos DIRACs, resgate/plantio da carga pelos aliados, placar de combate no fim de rodada
 - [x] **14** — Conteúdo e longevidade: segundo mapa (PALCO), seleção de mapa, IA e minimapa agnósticos de mapa (MapDef)
-- [ ] **15+** — Mais armas/agentes, modo treino dedicado, clima/variantes de mapa
+- [x] **15** — Cliente de jogo: splash de entrada, HUB com artes dos operadores e perfil/carreira persistentes, galeria de agentes, ajustes com vibração e briefing no hub
+- [ ] **16+** — Mais armas/agentes, modo treino dedicado, clima/variantes de mapa
 
 ## 🔧 Como o APK é feito (automático)
 

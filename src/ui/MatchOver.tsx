@@ -48,7 +48,7 @@ export default function MatchOver() {
             inputState.agentSelectQueued = true;
           }}
         >
-          <Text style={styles.btnAltTxt}>⇄ TROCAR AGENTE</Text>
+          <Text style={styles.btnAltTxt}>⌂ VOLTAR AO HUB</Text>
         </Pressable>
       </View>
     </View>

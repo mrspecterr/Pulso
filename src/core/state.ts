@@ -30,9 +30,10 @@ export const sessionState = {
 };
 
 export const settings = {
-  sensMultiplier: 1, // 1 | 1.5 | 2
+  sensMultiplier: 1, // 0.7 | 1 | 1.5 | 2 (Etapa 15: BAIXA entra no ciclo)
   quality: 'MEDIO' as QualityId, // Etapa 10: pipeline de desempenho
   volume: 1, // Etapa 11: volume do áudio (1 | 0.5 | 0)
+  haptics: true, // Etapa 15: vibração dos eventos (ligado por padrão)
 };
 
 // Estatísticas exibidas no HUD (escritas pelo loop, lidas por polling).
