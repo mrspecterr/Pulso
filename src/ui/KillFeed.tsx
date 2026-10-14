@@ -59,7 +59,7 @@ export default function KillFeed() {
 const styles = StyleSheet.create({
   col: {
     position: 'absolute',
-    top: 112,
+    top: 226, // abaixo do minimapa tático (Etapa 13)
     right: 18,
     alignItems: 'flex-end',
   },

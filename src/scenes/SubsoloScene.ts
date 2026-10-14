@@ -22,6 +22,8 @@ export interface SceneBundle {
   update: (dt: number, t: number) => void;
   colliders: AABB[]; // blocam o jogador
   solids: THREE.Object3D[]; // param balas (raycast)
+  /** snapshot estático dos colisores (footprint do minimapa, Etapa 13) */
+  walls: AABB[];
   /** posiciona o Diapasão plantado no site e inicia o anel de pulso */
   plant: (site: 'A' | 'B') => void;
   /** remove o Diapasão plantado (início de rodada) */
@@ -616,5 +618,9 @@ export function buildSubsolo(scene: THREE.Scene): SceneBundle {
     pulseRing.visible = false;
   };
 
-  return { update, colliders, solids, plant, clearPlant, setShadowResolution };
+  // footprint congelado dos colisores para o minimapa (antes da BARREIRA,
+  // que liga/desliga colisores em tempo de jogo, existir aqui)
+  const walls = colliders.map((c) => ({ ...c }));
+
+  return { update, colliders, solids, walls, plant, clearPlant, setShadowResolution };
 }

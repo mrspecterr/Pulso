@@ -12,7 +12,7 @@
 // Etapa 12 (5v5): o jogador abatido não encerra mais a rodada — entra
 // em ESPECTADOR e o esquadrão CORO luta por ele (sweep = varrida DIRAC).
 
-import { ECONOMY, ROUND } from '../config/constants';
+import { DIFFICULTY, ECONOMY, ROUND } from '../config/constants';
 import { gameStats, hudEvents, inputState, playerVitals, roundState } from '../core/state';
 
 interface Hooks {
@@ -44,6 +44,7 @@ export class RoundManager {
     playerVitals.shield = 0;
     roundState.matchWinner = null;
     roundState.outcome = null;
+    roundState.diracLevel = 0; // Etapa 13: ameaça reinicia com a partida
     this.startRound();
   }
 
@@ -51,12 +52,15 @@ export class RoundManager {
     roundState.phase = 'buy';
     roundState.phaseEndsAt = performance.now() + ROUND.BUY_MS;
     roundState.carrying = true;
+    roundState.carrierAlly = null; // Etapa 13: Diapasão volta ao líder
     roundState.planted = false;
     roundState.plantSite = null;
     roundState.plantProgress = 0;
     roundState.inSite = null;
     roundState.outcome = null;
     roundState.spectating = false; // Etapa 12
+    // Etapa 13: os DIRACs se adaptam — nível de ameaça = pontos DIRAC
+    roundState.diracLevel = Math.min(DIFFICULTY.MAX_LEVEL, roundState.scoreDIRAC);
     gameStats.defusing = false;
     gameStats.defuseProgress = 0;
     playerVitals.hp = 100;
@@ -102,7 +106,7 @@ export class RoundManager {
           }
           if (roundState.plantProgress >= 1) {
             roundState.plantProgress = 1;
-            this.plant(now);
+            this.plant(now, roundState.inSite as 'A' | 'B');
           }
         } else if (roundState.plantProgress > 0) {
           roundState.plantProgress = Math.max(0, roundState.plantProgress - dtMs / 900);
@@ -138,14 +142,23 @@ export class RoundManager {
     }
   }
 
-  private plant(now: number) {
-    const site = roundState.inSite as 'A' | 'B';
+  private plant(now: number, site: 'A' | 'B') {
     roundState.planted = true;
     roundState.plantSite = site;
     roundState.carrying = false;
+    roundState.carrierAlly = null; // plantado: ninguém carrega mais (Etapa 13)
     roundState.chargeEndsAt = now + ROUND.CHARGE_MS;
     hudEvents.emit({ type: 'planted', site });
     this.hooks.onPlanted(site);
+  }
+
+  /**
+   * Um aliado CORO completou o canal de plantio (Etapa 13): mesmo desfecho
+   * do plantio do líder — o Diapasão assume o site e o fusível corre.
+   */
+  allyPlant(site: 'A' | 'B') {
+    if (roundState.phase !== 'live' || roundState.planted) return;
+    this.plant(performance.now(), site);
   }
 
   /**

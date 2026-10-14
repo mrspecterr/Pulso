@@ -102,6 +102,47 @@ export const roundState = {
   outcome: null as 'pulse' | 'time' | 'elim' | 'silenced' | 'sweep' | null, // resultado em 'end'
   matchWinner: null as 'CORO' | 'DIRAC' | null,
   spectating: false, // jogador caído, o esquadrão luta por ele (Etapa 12)
+  diracLevel: 0, // nível de ameaça DIRAC desta rodada (Etapa 13)
+  carrierAlly: null as number | null, // aliado com o Diapasão (Etapa 13)
+};
+
+// Minimapa tático (Etapa 13) — escrito pelo loop a cada quadro (números
+// simples e slots fixos, sem alocação), lido pelo componente por polling.
+// Inimigo aparece só quando "acende" (atirou, levou dano ou foi revelado
+// pelo SONAR) — não é wallhack.
+export interface MiniBlip {
+  x: number;
+  z: number;
+  alive: boolean;
+  show: boolean; // inimigos: visível no minimapa agora
+}
+
+export const minimapState = {
+  px: 0,
+  pz: 12.5,
+  yaw: 0,
+  allies: [
+    { x: 0, z: 0, alive: true, show: true },
+    { x: 0, z: 0, alive: true, show: true },
+    { x: 0, z: 0, alive: true, show: true },
+    { x: 0, z: 0, alive: true, show: true },
+  ] as MiniBlip[],
+  enemies: [
+    { x: 0, z: 0, alive: true, show: false },
+    { x: 0, z: 0, alive: true, show: false },
+    { x: 0, z: 0, alive: true, show: false },
+    { x: 0, z: 0, alive: true, show: false },
+    { x: 0, z: 0, alive: true, show: false },
+  ] as MiniBlip[],
+  planted: null as 'A' | 'B' | null,
+  carrierIdx: -1, // aliado com o Diapasão (-1 = ninguém)
+  walls: [] as Array<{ minX: number; maxX: number; minZ: number; maxZ: number }>,
+};
+
+// Placar de combate da rodada (Etapa 13) — abates por nome de operador,
+// alimentado pelo kill feed e zerado no início de cada rodada.
+export const scoreboard = {
+  kills: {} as Record<string, number>,
 };
 
 // Visual do joystick (Etapa 10): valores Animated module-level — a camada

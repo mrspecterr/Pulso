@@ -17,7 +17,7 @@
 // escudo do jogador, emite o evento de HUD e encerra a rodada se necessário).
 
 import * as THREE from 'three';
-import { BOTS, COLORS, DEFUSE } from '../config/constants';
+import { BOTS, COLORS, DEFUSE, DIFFICULTY } from '../config/constants';
 import { StaticBuckets } from '../core/merge';
 import { hudEvents } from '../core/state';
 
@@ -70,6 +70,7 @@ interface Bot {
   targetIdx: number; // índice do alvo CORO atual em ctx.targets (-1 = som)
   soundX: number; // de onde veio o último tiro ouvido
   soundZ: number;
+  pingUntil: number; // minimapa aceso até aqui (atirou/levou dano, Etapa 13)
 }
 
 export interface BotCtx {
@@ -92,6 +93,7 @@ export interface BotInfo {
   x: number;
   z: number;
   hp: number;
+  pinged: boolean; // aceso no minimapa agora (Etapa 13)
 }
 
 // Rotas defensivas — waypoints em áreas abertas (não cruzam paredes).
@@ -160,6 +162,33 @@ export class BotSquad {
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
   private tmpCol = new THREE.Color();
+  /** nível de ameaça (Etapa 13): DIRACs se adaptam ao placar */
+  private lvl = 0;
+
+  /** Nível de ameaça da rodada — recalculado no início de cada uma. */
+  setLevel(n: number) {
+    this.lvl = Math.max(0, Math.min(DIFFICULTY.MAX_LEVEL, Math.round(n)));
+  }
+
+  // parâmetros efetivos (base + nível de ameaça)
+  private accBase() {
+    return BOTS.ACC_BASE + this.lvl * DIFFICULTY.ACC_PER_LEVEL;
+  }
+  private dmg() {
+    return BOTS.DMG + this.lvl * DIFFICULTY.DMG_PER_LEVEL;
+  }
+  private perceive() {
+    return BOTS.PERCEIVE_RANGE + this.lvl * DIFFICULTY.PERCEIVE_PER_LEVEL;
+  }
+  private retakeSpeed() {
+    return DEFUSE.RETAKE_SPEED + this.lvl * DIFFICULTY.RETAKE_PER_LEVEL;
+  }
+  /** janela de reação sorteada (menor a cada nível de ameaça) */
+  private reactDraw(now: number) {
+    const lo = Math.max(240, BOTS.REACT_MIN_MS - this.lvl * DIFFICULTY.REACT_MS_PER_LEVEL);
+    const hi = Math.max(lo + 80, BOTS.REACT_MAX_MS - this.lvl * DIFFICULTY.REACT_MS_PER_LEVEL);
+    return now + lo + Math.random() * (hi - lo);
+  }
 
   constructor(scene: THREE.Scene, solids: THREE.Object3D[]) {
     this.solids = solids;
@@ -305,6 +334,7 @@ export class BotSquad {
         targetIdx: -1,
         soundX: 0,
         soundZ: 0,
+        pingUntil: 0,
       });
     });
 
@@ -345,8 +375,9 @@ export class BotSquad {
     }
     bot.hp -= amount;
     bot.flash = 1;
-    // levar tiro revela o atirador e vira o rosto pra origem do dano
+    // levar tiro acende no minimapa e vira o rosto pra origem do dano
     bot.lastSeen = performance.now();
+    bot.pingUntil = Math.max(bot.pingUntil, bot.lastSeen + 1400);
     bot.soundX = bot.group.position.x;
     bot.soundZ = bot.group.position.z;
     // silenciamento/retake interrompidos: ele luta de volta
@@ -469,8 +500,7 @@ export class BotSquad {
         b.soundZ = pos.z;
         b.phase = 'alert';
         b.phaseT = now;
-        b.reactAt =
-          now + BOTS.REACT_MIN_MS + Math.random() * (BOTS.REACT_MAX_MS - BOTS.REACT_MIN_MS);
+        b.reactAt = this.reactDraw(now);
       }
     }
   }
@@ -501,6 +531,7 @@ export class BotSquad {
       b.targetIdx = -1;
       b.soundX = 0;
       b.soundZ = 0;
+      b.pingUntil = 0;
       b.group.visible = true;
       b.group.rotation.set(0, 0, 0);
       b.group.position.set(b.route[0][0], 0, b.route[0][1]);
@@ -569,13 +600,14 @@ export class BotSquad {
         b.losT = now;
         let bestIdx = -1;
         let bestD = Infinity;
+        const range = this.perceive();
         for (let i = 0; i < ctx.targets.length; i++) {
           const t = ctx.targets[i];
           if (!t.alive) continue;
           const tdx = t.pos.x - b.group.position.x;
           const tdz = t.pos.z - b.group.position.z;
           const td = Math.hypot(tdx, tdz);
-          if (td > BOTS.PERCEIVE_RANGE || td >= bestD) continue;
+          if (td > range || td >= bestD) continue;
           if (!this.los(b, t.pos)) continue;
           // saindo de patrulha exige cone de visão; já em combate, não
           if (b.phase === 'patrol' && !this.inFov(b, tdx, tdz, td)) continue;
@@ -586,10 +618,7 @@ export class BotSquad {
           if (b.phase === 'patrol') {
             b.phase = 'alert';
             b.phaseT = now;
-            b.reactAt =
-              now +
-              BOTS.REACT_MIN_MS +
-              Math.random() * (BOTS.REACT_MAX_MS - BOTS.REACT_MIN_MS);
+            b.reactAt = this.reactDraw(now);
           }
           b.targetIdx = bestIdx;
           b.lastSeen = now;
@@ -761,7 +790,7 @@ export class BotSquad {
           }
 
           // anda com deslize em parede (eixo a eixo, como o jogador)
-          const step = DEFUSE.RETAKE_SPEED * dt;
+          const step = this.retakeSpeed() * dt;
           const nx = b.group.position.x + (wdx / (wd || 1)) * step;
           const nz = b.group.position.z + (wdz / (wd || 1)) * step;
           let movedOk = false;
@@ -829,6 +858,8 @@ export class BotSquad {
   /** Um tiro do bot: tracer, clarão e chance de acerto no alvo CORO. */
   private fireShot(b: Bot, now: number, dist: number, ctx: BotCtx, target: Combatant) {
     const shooter = `DIRAC ${b.id + 1}`;
+    // o clarão da boca acende o operador no minimapa (Etapa 13)
+    b.pingUntil = Math.max(b.pingUntil, now + 2600);
     // boca da arma: à frente do corpo, altura do peito
     const yaw = b.group.rotation.y;
     this.tmpA.set(
@@ -839,9 +870,9 @@ export class BotSquad {
     // alvo: peito do CORO (jogador ou aliado)
     this.tmpB.set(target.pos.x, target.pos.y - 0.25, target.pos.z);
 
-    let acc = BOTS.ACC_BASE - dist * BOTS.ACC_PER_M;
+    let acc = this.accBase() - dist * BOTS.ACC_PER_M;
     if (target.moving) acc -= BOTS.ACC_MOVE_PENALTY;
-    acc = Math.max(0.08, Math.min(0.75, acc));
+    acc = Math.max(0.08, Math.min(0.82, acc));
 
     if (Math.random() >= acc) {
       // errou — o tiro passa raspando: desvio perpendicular prolongado
@@ -891,7 +922,7 @@ export class BotSquad {
   /** Mantém o objeto de leitura (info) atualizado sem alocar. */
   private syncInfo() {
     if (this.info.list.length !== this.bots.length) {
-      this.info.list = this.bots.map(() => ({ id: 0, phase: 'patrol', x: 0, z: 0, hp: 0 }));
+      this.info.list = this.bots.map(() => ({ id: 0, phase: 'patrol', x: 0, z: 0, hp: 0, pinged: false }));
     }
     let alive = 0;
     this.bots.forEach((b, i) => {

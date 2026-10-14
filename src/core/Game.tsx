@@ -42,8 +42,10 @@ import {
   hudEvents,
   inputState,
   lookState,
+  minimapState,
   playerVitals,
   roundState,
+  scoreboard,
   sessionState,
   settings,
   tracoState,
@@ -154,6 +156,8 @@ function runGame(
   const range = new TargetRange(scene, TARGET_SPOTS);
   const squad = new BotSquad(scene, bundle.solids);
   const allies = new AllySquad(scene, bundle.solids); // Etapa 12: esquadrão CORO
+  // minimapa (Etapa 13): footprint estático das paredes do SUBSOLO
+  minimapState.walls = bundle.walls;
 
   // --- câmera (spawn CORO: sul do mapa, olhando para o norte/-Z) ---
   const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 220);
@@ -480,7 +484,9 @@ function runGame(
     bundle.clearPlant();
     range.reset();
     squad.reset();
+    squad.setLevel(roundState.diracLevel); // Etapa 13: DIRACs do nível atual
     allies.reset(); // Etapa 12: esquadrão de volta à formação
+    scoreboard.kills = {}; // Etapa 13: placar de combate limpa
   };
 
   // --- gerente de rodadas ---
@@ -511,6 +517,27 @@ function runGame(
     if (playerVitals.hp <= 0) {
       hudEvents.emit({ type: 'feed', killer, victim: 'VOCÊ' });
       rounds.killPlayer();
+      // Etapa 13: líder caiu com o Diapasão → o aliado vivo mais próximo
+      // pega a carga e leva ao site (a rodada segue com você de espectador)
+      if (roundState.carrying && roundState.phase === 'live') {
+        let best = -1;
+        let bestD = Infinity;
+        allies.info.list.forEach((l, i) => {
+          if (!l.alive) return;
+          const d = Math.hypot(
+            l.x - camera.position.x,
+            l.z - camera.position.z
+          );
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        });
+        if (best >= 0) {
+          roundState.carrying = false;
+          allies.assignCarrier(best); // grava roundState.carrierAlly
+        }
+      }
     }
   };
 
@@ -556,6 +583,24 @@ function runGame(
     gameStats.reloadProgress = 0;
     hudEvents.emit({ type: 'reload' });
   };
+
+  // --- placar de combate (Etapa 13) ---
+  // Abates confirmados alimentam o scoreboard mostrado no fim da rodada;
+  // eventos de missão ("TENOR ▸ PEGOU O DIAPASÃO") não contam.
+  const isCombatantName = (n: string) =>
+    n === 'VOCÊ' ||
+    (ALLY_NAMES as readonly string[]).includes(n) ||
+    /^DIRAC [1-5]$/.test(n);
+  const unsubFeed = hudEvents.subscribe((e) => {
+    if (
+      e.type === 'feed' &&
+      e.killer !== e.victim &&
+      isCombatantName(e.killer) &&
+      isCombatantName(e.victim)
+    ) {
+      scoreboard.kills[e.killer] = (scoreboard.kills[e.killer] ?? 0) + 1;
+    }
+  });
 
   const fire = (nowMs: number) => {
     const W = WEAPONS[roundState.weapon];
@@ -847,9 +892,34 @@ function runGame(
           squad.heardShot(pos, now);
           hudEvents.emit({ type: 'botShot', dist: distToPlayer });
         },
+        onAllyPlant: (site) => rounds.allyPlant(site), // Etapa 13
       });
       gameStats.alliesAlive = allies.info.alive;
       gameStats.allyMask = allies.info.list.map((l) => (l.alive ? '1' : '0')).join('');
+
+      // minimapa tático (Etapa 13): posições vivas copiadas sem alocar
+      const mm = minimapState;
+      mm.px = camera.position.x;
+      mm.pz = camera.position.z;
+      mm.yaw = lookState.yaw;
+      for (let i = 0; i < mm.allies.length; i++) {
+        const dst = mm.allies[i];
+        const src = allies.info.list[i];
+        dst.x = src.x;
+        dst.z = src.z;
+        dst.alive = src.alive;
+        dst.show = src.alive;
+      }
+      for (let i = 0; i < mm.enemies.length; i++) {
+        const dst = mm.enemies[i];
+        const src = squad.info.list[i];
+        dst.x = src.x;
+        dst.z = src.z;
+        dst.alive = src.hp > 0;
+        dst.show = src.pinged;
+      }
+      mm.planted = roundState.planted ? roundState.plantSite : null;
+      mm.carrierIdx = roundState.carrierAlly ?? -1;
 
       // desfechos 5v5 (Etapa 12): varrida DIRAC = ponto CORO; CORO
       // aniquilado (jogador + aliados) = ponto DIRAC
@@ -993,6 +1063,7 @@ function runGame(
   stopRef.current = () => {
     stopped = true;
     cancelAnimationFrame(raf);
+    unsubFeed(); // Etapa 13: placar não escuta mais o feed
     SFX.ambient(false); // o subsolo silencia junto com a partida
   };
 }

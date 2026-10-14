@@ -7,6 +7,7 @@ import {
   lookState,
   playerVitals,
   roundState,
+  scoreboard,
   sessionState,
   settings,
 } from '../core/state';
@@ -20,6 +21,7 @@ import Hitmarker from './Hitmarker';
 import Joystick from './Joystick';
 import KillFeed from './KillFeed';
 import MatchOver from './MatchOver';
+import Minimap from './Minimap';
 import PlantButton from './PlantButton';
 import ReloadButton from './ReloadButton';
 import TracoButtons from './TracoButtons';
@@ -62,6 +64,21 @@ interface Snap {
   sens: number; // multiplicador de sensibilidade vigente
   quality: string; // rótulo da qualidade gráfica vigente
   vol: number; // volume do áudio vigente (Etapa 11)
+  diracLevel: number; // nível de ameaça DIRAC (Etapa 13)
+  carrierName: string | null; // aliado com o Diapasão (Etapa 13)
+  board: { coro: Array<[string, number]>; dirac: Array<[string, number]> } | null; // placar de fim de rodada (Etapa 13)
+}
+
+function buildBoard() {
+  const coro = (['VOCÊ', ...ALLY_NAMES] as string[]).map(
+    (n) => [n, scoreboard.kills[n] ?? 0] as [string, number]
+  );
+  const dirac = [1, 2, 3, 4, 5].map(
+    (i) => [`DIRAC ${i}`, scoreboard.kills[`DIRAC ${i}`] ?? 0] as [string, number]
+  );
+  coro.sort((a, b) => b[1] - a[1]);
+  dirac.sort((a, b) => b[1] - a[1]);
+  return { coro, dirac };
 }
 
 function readState(): Snap {
@@ -105,6 +122,15 @@ function readState(): Snap {
     sens: settings.sensMultiplier,
     quality: QUALITY[settings.quality].label,
     vol: settings.volume,
+    diracLevel: roundState.diracLevel,
+    carrierName:
+      roundState.carrierAlly != null &&
+      roundState.phase === 'live' &&
+      !roundState.planted &&
+      roundState.carrierAlly < ALLY_NAMES.length
+        ? ALLY_NAMES[roundState.carrierAlly]
+        : null,
+    board: roundState.phase === 'end' ? buildBoard() : null,
   };
 }
 
@@ -144,7 +170,7 @@ export default function Hud() {
       <View style={styles.tl}>
         <Text style={styles.title}>PULSO</Text>
         <Text style={styles.sub}>
-          RODADA {s.roundNum} · v0.12
+          RODADA {s.roundNum} · v0.13
         </Text>
         <Text style={[styles.agent, { color: A.corCss }]}>
           {A.nome} · {A.funcao}
@@ -154,6 +180,12 @@ export default function Hud() {
         {s.carrying && s.phase === 'live' ? (
           <View style={styles.chip}>
             <Text style={styles.chipTxt}>◈ DIAPASÃO</Text>
+          </View>
+        ) : null}
+        {/* portador aliado da carga (Etapa 13) */}
+        {s.carrierName ? (
+          <View style={styles.chipMag}>
+            <Text style={styles.chipTxtMag}>◈ {s.carrierName} LEVA A CARGA</Text>
           </View>
         ) : null}
         {/* esquadrão CORO em campo (Etapa 12) */}
@@ -201,7 +233,11 @@ export default function Hud() {
         ) : null}
         {/* jogador caído: o esquadrão luta por ele (Etapa 12) */}
         {s.phase === 'live' && s.spectating ? (
-          <Text style={styles.specBanner}>NEUTRALIZADO — SEU ESQUADRÃO LUTA</Text>
+          <Text style={styles.specBanner}>
+            {s.carrierName
+              ? `NEUTRALIZADO — ${s.carrierName} LEVA O DIAPASÃO`
+              : 'NEUTRALIZADO — SEU ESQUADRÃO LUTA'}
+          </Text>
         ) : null}
         {/* vitais: hp + escudo */}
         <View style={styles.vitals}>
@@ -229,8 +265,14 @@ export default function Hud() {
           {Math.round((lookState.pitch * 180) / Math.PI)}°
         </Text>
         <Text style={styles.enemyCount}>{s.enemies} DIRAC EM CAMPO</Text>
+        <Text style={styles.levelTag}>
+          AMEAÇA {s.diracLevel > 0 ? `+${s.diracLevel}` : '·'}
+        </Text>
         <Text style={styles.fpsTag}>{s.fps} FPS</Text>
       </View>
+
+      {/* minimapa tático (Etapa 13) — fora das fases de menu */}
+      {s.phase !== 'buy' && s.phase !== 'over' ? <Minimap /> : null}
       {/* SENS e GRAF: coluna esquerda, posição/tamanho FIXOS (BTN) —
           tocados via camada de input */}
       <View pointerEvents="none" style={styles.sensBtn}>
@@ -307,6 +349,25 @@ export default function Hud() {
           <Text style={styles.bannerSub}>
             ponto para {s.outcome === 'pulse' || s.outcome === 'sweep' ? 'CORO' : 'DIRAC'} · próxima rodada em {s.secLeft}s
           </Text>
+          {/* placar de combate da rodada (Etapa 13) */}
+          {s.board ? (
+            <View style={styles.boardRow}>
+              <View style={styles.boardCol}>
+                {s.board.coro.map(([n, k]) => (
+                  <Text key={n} style={styles.boardTeal}>
+                    {n} {k}
+                  </Text>
+                ))}
+              </View>
+              <View style={styles.boardColR}>
+                {s.board.dirac.map(([n, k]) => (
+                  <Text key={n} style={styles.boardMag}>
+                    {n} {k}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -445,6 +506,38 @@ const styles = StyleSheet.create({
     color: 'rgba(255,61,142,0.85)',
     marginTop: 4,
   },
+  levelTag: {
+    fontFamily: MONO,
+    fontSize: 9,
+    letterSpacing: 2,
+    color: 'rgba(255,177,84,0.9)',
+    marginTop: 3,
+  },
+  chipMag: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,177,84,0.6)',
+    backgroundColor: 'rgba(255,177,84,0.10)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  chipTxtMag: { fontFamily: MONO, fontSize: 9, letterSpacing: 2, color: '#FFB454' },
+  boardRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(122,139,153,0.35)',
+    backgroundColor: 'rgba(9,13,18,0.82)',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  boardCol: { alignItems: 'flex-end', marginRight: 22 },
+  boardColR: { alignItems: 'flex-start' },
+  boardTeal: { fontFamily: MONO, fontSize: 10, color: CSS.TEAL, lineHeight: 15 },
+  boardMag: { fontFamily: MONO, fontSize: 10, color: 'rgba(255,61,142,0.9)', lineHeight: 15 },
   sensBtn: {
     position: 'absolute',
     left: BTN.SENS.left,

@@ -337,6 +337,26 @@ export const DEFUSE = {
   RETAKE_SPEED: 2.1, // m/s correndo de volta ao site
 } as const;
 
+// --- mundo (limites do SUBSOLO, para o minimapa da Etapa 13) ---
+export const WORLD = {
+  W: 40, // x ∈ [-20, 20]
+  H: 32, // z ∈ [-16, 16] (norte = -Z)
+} as const;
+
+// --- dificuldade escalonada dos DIRACs (Etapa 13) ---
+// Os DIRACs se adaptam: cada ponto DIRAC no placar deixa o esquadrão
+// inimigo um nível mais afiado (precisão, reação, dano, percepção e
+// retake). A partida se equilibra sozinha — abrir vantagem exige mais
+// do CORO a cada rodada.
+export const DIFFICULTY = {
+  MAX_LEVEL: 6, // teto de ameaça (pontos DIRAC acima disto não somam)
+  ACC_PER_LEVEL: 0.028, // +precisão base
+  REACT_MS_PER_LEVEL: 45, // -tempo de reação
+  DMG_PER_LEVEL: 0.5, // +dano por bala
+  PERCEIVE_PER_LEVEL: 0.6, // +alcance de percepção (m)
+  RETAKE_PER_LEVEL: 0.12, // +velocidade do retake (m/s)
+} as const;
+
 // --- qualidade de render (Etapa 10: desempenho) ---
 // O mundo 3D é desenhado num alvo de resolução reduzido e esticado para a
 // tela — o HUD nativo continua nítido. Sombras: mapa menor e atualizado a

@@ -9,20 +9,31 @@
 //            posições fixas cobrindo as entradas
 //   seek   → líder caído sem plantio: "pressentimento" periódico do DIRAC
 //            mais próximo e caça — o jogador assiste o esquadrão lutar
+//   carry  → Etapa 13: líder caído com o Diapasão → este aliado pega a
+//            carga e leva ao site mais próximo (não se distrai)
+//   planting → canal de plantio do aliado (3,5s parado no site)
 //   dying  → tomba como os DIRACs; volta na próxima rodada
 //
 // Balé de squad: os aliados atiram nos DIRACs (ctx.targets), os tiros
 // ecoam (alertam inimigos) e cada abate alimenta o kill feed.
 
 import * as THREE from 'three';
-import { ALLIES, COLORS } from '../config/constants';
+import { ALLIES, COLORS, ROUND, SITES } from '../config/constants';
 import { StaticBuckets } from '../core/merge';
-import { hudEvents } from '../core/state';
+import { hudEvents, roundState } from '../core/state';
 import type { Combatant } from './Bots';
 
 export const ALLY_NAMES = ['TENOR', 'ALTO', 'BAIXO', 'CONTRA'] as const;
 
-type AllyPhase = 'escort' | 'engage' | 'hold' | 'seek' | 'dying' | 'dead';
+type AllyPhase =
+  | 'escort'
+  | 'engage'
+  | 'hold'
+  | 'seek'
+  | 'carry'
+  | 'planting'
+  | 'dying'
+  | 'dead';
 
 interface Ally {
   id: number;
@@ -54,6 +65,8 @@ interface Ally {
   chainWp: number;
   walking: boolean; // animação de passo
   walkT: number;
+  plantK: number; // progresso do plantio do aliado (Etapa 13)
+  carrySite: 'A' | 'B'; // site de destino da carga (Etapa 13)
 }
 
 export interface AllyCtx {
@@ -71,6 +84,8 @@ export interface AllyCtx {
   plantPos: THREE.Vector3 | null;
   /** o tiro do aliado ecoa: alerta os DIRACs e soa distante p/ o jogador */
   onAllyShot: (pos: THREE.Vector3, distToPlayer: number) => void;
+  /** um aliado completou o plantio do Diapasão (Etapa 13) */
+  onAllyPlant: (site: 'A' | 'B') => void;
 }
 
 export interface AllyInfo {
@@ -134,6 +149,37 @@ export class AllySquad {
   private tmpA = new THREE.Vector3();
   private tmpB = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
+  /** índice do portador do Diapasão (Etapa 13; -1 = ninguém) */
+  private carrier = -1;
+  private lastPlantTick = 0; // cadência dos pings do plantio do aliado
+
+  /**
+   * Etapa 13: o líder caiu com o Diapasão — este aliado pega a carga.
+   * Escolhe o site mais próximo de si e não se distrai com combates no
+   * caminho (os outros continuam lutando por ele).
+   */
+  assignCarrier(idx: number) {
+    const a = this.allies[idx];
+    if (!a || a.phase === 'dying' || a.phase === 'dead') return;
+    this.carrier = idx;
+    roundState.carrierAlly = idx;
+    a.plantK = 0;
+    a.phase = 'carry';
+    a.phaseT = performance.now();
+    a.shooting = false;
+    a.burstLeft = 0;
+    const dA = Math.hypot(a.group.position.x - SITES.A.x, a.group.position.z - SITES.A.z);
+    const dB = Math.hypot(a.group.position.x - SITES.B.x, a.group.position.z - SITES.B.z);
+    a.carrySite = dA <= dB ? 'A' : 'B';
+    this.chainTo(a, SITES[a.carrySite].x, SITES[a.carrySite].z);
+    hudEvents.emit({ type: 'feed', killer: a.name, victim: 'PEGOU O DIAPASÃO' });
+  }
+
+  /** Ninguém carrega mais (rodada nova ou plantio concluído). */
+  private clearCarrier() {
+    this.carrier = -1;
+    roundState.carrierAlly = null;
+  }
 
   constructor(scene: THREE.Scene, solids: THREE.Object3D[]) {
     this.solids = solids;
@@ -250,6 +296,8 @@ export class AllySquad {
         chainWp: 0,
         walking: false,
         walkT: 0,
+        plantK: 0,
+        carrySite: 'A',
       });
     });
 
@@ -279,6 +327,7 @@ export class AllySquad {
       a.chainWp = 0;
       a.walking = false;
       a.walkT = 0;
+      a.plantK = 0;
       a.group.visible = true;
       a.group.rotation.set(0, 0, 0);
       const [fx, fz] = FORMATION[i];
@@ -289,6 +338,8 @@ export class AllySquad {
       a.headMat.emissiveIntensity = 0.2;
       this.updateBar(a);
     });
+    this.clearCarrier();
+    this.lastPlantTick = 0;
     this.syncInfo();
   }
 
@@ -461,6 +512,32 @@ export class AllySquad {
 
   /** Chamado todo frame pelo loop. */
   update(dt: number, now: number, ctx: AllyCtx) {
+    // portador do Diapasão caiu → o aliado vivo mais próximo pega a carga
+    // (Etapa 13); se não restou ninguém, o Game encerra a rodada
+    if (this.carrier >= 0) {
+      const c = this.allies[this.carrier];
+      if (c.phase === 'dying' || c.phase === 'dead') {
+        let best = -1;
+        let bestD = Infinity;
+        for (const a of this.allies) {
+          if (a.phase === 'dying' || a.phase === 'dead') continue;
+          const d = Math.hypot(
+            a.group.position.x - c.group.position.x,
+            a.group.position.z - c.group.position.z
+          );
+          if (d < bestD) {
+            bestD = d;
+            best = a.id;
+          }
+        }
+        if (best >= 0) {
+          this.assignCarrier(best);
+        } else {
+          this.clearCarrier();
+        }
+      }
+    }
+
     for (const a of this.allies) {
       // barra encara a câmera
       a.bar.quaternion.copy(ctx.camera.quaternion);
@@ -497,7 +574,8 @@ export class AllySquad {
       if (!ctx.active) continue;
 
       // --- percepção: DIRAC visível → combate ---
-      const spotted = this.spot(a, now, ctx);
+      // (o portador do Diapasão não se distrai: cumpre a missão)
+      const spotted = a.id === this.carrier ? null : this.spot(a, now, ctx);
       if (spotted) {
         a.lastSeen = now;
         if (a.phase !== 'engage') {
@@ -673,6 +751,49 @@ export class AllySquad {
           }
           if (a.chain.length > 0) {
             this.followChain(a, dt, ALLIES.HOLD_SPEED, ctx);
+          }
+          break;
+        }
+
+        case 'carry': {
+          // Etapa 13: Diapasão nas mãos, caminho ao site designado
+          if (ctx.plantPos) {
+            // já plantado por outro: vira defesa
+            a.phase = 'hold';
+            break;
+          }
+          const d = Math.hypot(
+            SITES[a.carrySite].x - a.group.position.x,
+            SITES[a.carrySite].z - a.group.position.z
+          );
+          if (d <= ROUND.SITE_RADIUS * 0.65) {
+            a.phase = 'planting';
+            a.phaseT = now;
+            a.plantK = 0;
+            break;
+          }
+          this.followChain(a, dt, ALLIES.HOLD_SPEED, ctx);
+          break;
+        }
+
+        case 'planting': {
+          // canal de plantio do aliado: parado no site (Etapa 13)
+          if (ctx.plantPos) {
+            a.phase = 'hold';
+            this.clearCarrier();
+            break;
+          }
+          a.plantK += (dt * 1000) / ROUND.PLANT_MS;
+          if (now - this.lastPlantTick >= 650) {
+            this.lastPlantTick = now;
+            hudEvents.emit({ type: 'plantTick' });
+          }
+          if (a.plantK >= 1) {
+            a.plantK = 1;
+            const site = a.carrySite;
+            this.clearCarrier();
+            a.phase = 'hold';
+            ctx.onAllyPlant(site);
           }
           break;
         }

@@ -40,6 +40,7 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas.
 - **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
 - **Esquadrão 5v5 (v0.12)** — quatro aliados CORO (TENOR, ALTO, BAIXO, CONTRA) lutam ao seu lado: seguem sua formação, engajam DIRACs à vista, defendem o site plantado e caçam sozinhos se você cair. Kill feed no canto, barra do esquadrão no HUD, modo espectador quando você é abatido e vitória por varrida (`DIRAC VARRIDO DO MAPA`). Os DIRACs também cresceram para cinco — e agora revidam quando baleados durante o retake.
+- **Polimento e equilíbrio (v0.13)** — **minimapa tático** com a planta real do SUBSOLO (paredes dos colisores, seta de orientação, esquadrão, sites e Diapasão plantado; DIRACs acendem ao atirar, levar dano ou serem revelados pelo SONAR — sem wallhack); **dificuldade escalonada**: cada ponto DIRAC no placar deixa o esquadrão inimigo um nível mais afiado (precisão, reação, dano, percepção e retake — indicador `AMEAÇA` no HUD); **resgate da carga**: se você cair com o Diapasão, o aliado mais próximo pega a carga e planta por você (`◈ TENOR LEVA A CARGA`) — e se ele cair, outro assume; **placar de combate** no fim de cada rodada (abates por operador, CORO × DIRAC).
 - **Mapa SUBSOLO** — 40×32m com corredores, sites A/B, caixotes e colisão real.
 - **Direção de arte (v0.9)** — texturas procedurais (concreto, lajes, painéis, hazard), iluminação com sombras dinâmicas, arma em primeira pessoa animada, faíscas de impacto, luminárias/vigas/canos e placas de site.
 - **Áudio e feedback (v0.11)** — todo o áudio é procedural (sintetizado por `scripts/gen_sfx.py`, zero assets externos): tiros com variação de timbre, estrondos do DIRAC com atenuação por distância, recarga com dois estágios, o Diapasão canta ao ser plantado e acelera o bip conforme o fusível derrete, detonação com sub-grave, motivos de vitória/derrota e o zumbido contínuo do subsolo. Haptics em acerto/abate/dano/plantio e botão `SOM` (100% · 50% · mudo).
@@ -58,7 +59,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **10** — Multi-touch real (camada única de entrada) + desempenho (merge de geometria, resolução escalonada, contador de FPS)
 - [x] **11** — Áudio e feedback: SFX 100% procedurais, haptics, botão SOM, automação de APK no GitHub Actions
 - [x] **12** — Esquadrão 5v5: aliados CORO com IA (formação, combate, defesa do site, caça), DIRACs revidando no retake, kill feed, espectador e varrida
-- [ ] **13+** — Polimento e equilíbrio
+- [x] **13** — Polimento e equilíbrio: minimapa tático, dificuldade escalonada dos DIRACs, resgate/plantio da carga pelos aliados, placar de combate no fim de rodada
+- [ ] **14+** — Conteúdo e longevidade — ex.: segundo mapa, mais armas/agentes, modo treino dedicado
 
 ## 🔧 Como o APK é feito (automático)
 
