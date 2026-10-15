@@ -30,6 +30,10 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Entrada de partida (v0.22)** — o fim da tela preta de carga:
+  - **Cartão de entrada** — apertar JOGAR agora atravessa uma tela de entrada de verdade: mapa em destaque na cor própria, clima com tagline, esquadrão CORO ⟷ DIRAC, modo da sessão e dicas da estação rotativas — tudo honesto com o que o motor faz
+  - **Saída no primeiro quadro** — o motor 3D avisa quando o primeiro quadro chega na tela (sinal `onReady` do Game) e o cartão sai em crossfade de 420ms: o jogador nunca vê a montagem crua da cena
+  - **Guarda de 8s** — se o sinal não vier (inclusive painel de falha do GL), o cartão se retira sozinho; animações em driver nativo seguem vivas mesmo com a thread JS ocupada construindo a cena
 - **Cliente premium (v0.21)** — a camada de apresentação no padrão dos grandes:
   - **Navegação viva** — nenhuma tela troca "à seco": a anterior continua montada enquanto a nova entra por cima em crossfade de 280ms com deslize sutil, e a antiga recua em profundidade (scale-down); entrar/sair de partida é fade puro, porque a montagem do motor 3D já pesa o suficiente
   - **Entrada cinematográfica** — a splash MONTA a si mesma em sequência (fundo → logo com peso de assinatura → tagline → equalizer → convite → rodapé) sobre um único driver Animated, sem re-render
@@ -111,7 +115,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **19** — Ranking sazonal: patente em decibéis (30–120) com calibração, divisões e a escada da dinâmica musical (SILENTE→PULSO), tela de patente no hub e cartão de dB no fim da partida
 - [x] **20** — Arsenal & Dossiê: galeria de armas com arte por arma e ficha técnica real do motor (DPS, salvas, economia), dossiê do operador com 12 stats de carreira, etiquetas de estilo derivadas e progresso de conquistas
 - [x] **21** — Cliente premium: transições crossfade entre todas as telas (a anterior recua em profundidade), splash cinematográfica em sequência, arte do hub em deriva Ken Burns, brilho varrendo o botão JOGAR e toque unificado com vibração (tap) em toda a interface
-- [ ] **22+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
+- [x] **22** — Entrada de partida: cartão de entrada (mapa, clima, esquadrão, dicas rotativas) cobrindo a montagem do motor 3D, com saída em crossfade no primeiro quadro renderizado e guarda de 8s
+- [ ] **23+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
 
 ## 🔧 Como o APK é feito (automático)
 

@@ -259,7 +259,7 @@ export default function HomeScreen({
         <Text style={hs.footCareer}>
           {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
         </Text>
-        <Text style={hs.footVer}>v0.21 · mrspecterr/Pulso</Text>
+        <Text style={hs.footVer}>v0.22 · mrspecterr/Pulso</Text>
       </View>
 
       {/* ---- briefing: como jogar ---- */}

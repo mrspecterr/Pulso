@@ -104,7 +104,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
 
       <Animated.View style={{ opacity: inFoot }}>
         <Text style={sp.foot}>
-          v0.21 · carreira de {p.career.matches} partida{p.career.matches === 1 ? '' : 's'} registrada
+          v0.22 · carreira de {p.career.matches} partida{p.career.matches === 1 ? '' : 's'} registrada
         </Text>
       </Animated.View>
     </Animated.View>

@@ -13,6 +13,7 @@ import CareerScreen from './src/client/CareerScreen';
 import SettingsScreen from './src/client/SettingsScreen';
 import MissionsScreen from './src/client/MissionsScreen';
 import RankScreen from './src/client/RankScreen';
+import MatchLoading from './src/client/MatchLoading';
 import { CSS } from './src/config/constants';
 import { gameStats, hudEvents, matchStats, roundState, uiState, sessionState } from './src/core/state';
 import type { SessionMode } from './src/core/state';
@@ -72,6 +73,12 @@ class ErrorBoundary extends React.Component<
  * continua montada enquanto a nova entra por cima em crossfade (com um
  * deslize sutil e a antiga recuando em profundidade). Entrar em partida
  * é fade puro (a montagem do motor 3D já é pesada o suficiente).
+ *
+ * Etapa 22 — ENTRADA DE PARTIDA: o fade da partida agora esconde um
+ * CARTÃO DE ENTRADA (mapa, clima, esquadrão, dicas) que cobre a
+ * montagem do motor 3D e sai em crossfade no primeiro quadro
+ * renderizado (sinal onReady do Game). O jogador nunca mais vê a tela
+ * preta de carga.
  */
 type Screen =
   | 'splash'
@@ -124,6 +131,11 @@ export default function App() {
     weather: string;
     mode: SessionMode;
   } | null>(null);
+  // Etapa 22 — a entrada de partida: `matchReady` acende no primeiro
+  // quadro do motor (onReady do Game); `loadGone` tira o cartão do
+  // render quando o crossfade termina
+  const [matchReady, setMatchReady] = React.useState(false);
+  const [loadGone, setLoadGone] = React.useState(false);
 
   React.useEffect(() => {
     // trava em paisagem mesmo quando app.json não é aplicável (ex.: Snack)
@@ -171,6 +183,8 @@ export default function App() {
     // mapa, clima e agente inclusos (Etapa 17)
     sessionState.mode = mode;
     uiState.trainMenuOpen = false;
+    setMatchReady(false); // Etapa 22 — a entrada de partida recomeça
+    setLoadGone(false);
     setSession({
       agent: sessionState.agent,
       map: sessionState.map,
@@ -223,8 +237,17 @@ export default function App() {
       case 'match':
         return session ? (
           <>
-            <Game key={`${session.agent}-${session.map}-${session.weather}-${session.mode}`} />
+            <Game
+              key={`${session.agent}-${session.map}-${session.weather}-${session.mode}`}
+              onReady={() => setMatchReady(true)}
+            />
             <Hud />
+            {/* Etapa 22 — o cartão de entrada cobre a montagem do motor e
+                sai em crossfade no primeiro quadro renderizado; guarda de
+                8s dentro do MatchLoading cobre falha do GL */}
+            {!loadGone && (
+              <MatchLoading ready={matchReady} onGone={() => setLoadGone(true)} />
+            )}
           </>
         ) : null;
     }

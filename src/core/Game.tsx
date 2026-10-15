@@ -88,12 +88,17 @@ interface Tracer {
  * Blindagem: qualquer exceção no init do GL ou no loop aparece num painel
  * legível (em vez de crash cego) — facilita diagnóstico em aparelho real.
  */
-export default function Game() {
+export default function Game({ onReady }: { onReady?: () => void }) {
   const [fatal, setFatal] = useState<{ message: string; stack: string } | null>(null);
   const [glKey, setGlKey] = useState(0);
   // handle de encerramento do loop — chamado quando o Game desmonta
   // (troca de agente) para não renderizar num contexto GL morto
   const stopRef = useRef<(() => void) | null>(null);
+
+  // Etapa 22 — o primeiro quadro do motor avisa a entrada de partida; o
+  // ref desacopla a identidade do callback (onContextCreate é estável)
+  const readyRef = useRef(onReady);
+  readyRef.current = onReady;
 
   useEffect(() => {
     return () => {
@@ -104,7 +109,7 @@ export default function Game() {
   const onContextCreate = useCallback(
     (gl: ExpoWebGLRenderingContext) => {
       try {
-        runGame(gl, setFatal, stopRef);
+        runGame(gl, setFatal, stopRef, () => readyRef.current?.());
       } catch (e) {
         reportFatal(e, setFatal);
       }
@@ -157,7 +162,8 @@ function reportFatal(
 function runGame(
   gl: ExpoWebGLRenderingContext,
   setFatal: (v: { message: string; stack: string }) => void,
-  stopRef: React.MutableRefObject<(() => void) | null>
+  stopRef: React.MutableRefObject<(() => void) | null>,
+  onFirstFrame: () => void
 ) {
   const w = gl.drawingBufferWidth;
   const h = gl.drawingBufferHeight;
@@ -999,6 +1005,7 @@ function runGame(
   let raf = 0;
   let last = performance.now();
   let stopped = false;
+  let firstFrameDone = false; // Etapa 22 — dispara o fim da entrada de partida
   let prevYaw = lookState.yaw;
   let prevPitch = lookState.pitch;
   let viewPunch = 0; // recuo visual da câmera (sobe e decai)
@@ -1347,6 +1354,13 @@ function runGame(
       renderer.setRenderTarget(null);
       renderer.render(blitScene, blitCam);
       gl.endFrameEXP();
+
+      // Etapa 22 — o primeiro quadro na tela manda a entrada de partida
+      // embora (o jogador nunca vê a montagem crua do motor)
+      if (!firstFrameDone) {
+        firstFrameDone = true;
+        onFirstFrame();
+      }
 
       // diagnóstico de desempenho (HUD + __PULSO__)
       if (rawDt > 0) {
