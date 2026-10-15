@@ -30,6 +30,12 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Ranking sazonal (v0.19)** — a patente medida na própria física do jogo, o decibel:
+  - **Escala dB 30–120** — do sussurro ao limiar da dor (que se chama PULSO); começa em 60 (MEZZO III), 3 partidas de **calibração** com passos largos abrem a temporada
+  - **A escada da dinâmica musical** — SILENTE `pp` → PIANO `p` → MEZZO `mp` → FORTE `mf` → FORTISSIMO `f` → DIAPASÃO `ff` → **PULSO `fff`** (o topo único, exatamente 120 dB); três divisões por patente (III→II→I)
+  - **A conta é honesta** — vitória soma pela margem de rodadas (7–0 pesa mais que 7–5), desempenho pessoal e embalo de sequência; derrota subtrai pelo placar; piso de 30 dB sempre deixa caminho de volta
+  - **Tela de patente no hub** — emblema em losango na cor da patente, dB vivo, barra rumo à próxima, números da temporada (V/D, aproveitamento, sequência, pico) e a escada completa com VOCÊ marcado
+  - **Cartão de dB no fim da partida** — `+21 dB` ou `−17 dB`, promoção ▲ / rebaixamento ▼ e a seladura da calibração, na hora em que acontece
 - **Frente Climática & Progressão (v0.17)** — a partida muda de cara — e de regras:
   - **Clima por partida (PADRÃO · NOITE · NEBLINA)** — escolha ao lado do mapa no hub, persiste no perfil. **NOITE**: blecaute — luar frio, neon dos sites carregando a leitura e DIRACs enxergando 20% menos; **NEBLINA**: vapor engolindo a estação, alcance de percepção 38% menor, audição cortada e reação mais lenta — ambos os mapas reescritos por clima (fog, luzes, exposição)
   - **3º Traço por kit** — o botão do kit vira um "L" à direita da munição:
@@ -92,7 +98,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **16** — Arsenal & Campo de Provas: escopeta GLISSANDO (8 balins, corredera animada), operador VIBRATO com CADÊNCIA/RITARDANDO e modo treino com dB infinito
 - [x] **17** — Frente climática & progressão: clima por partida (NOITE/NEBLINA com impacto no combate), 3º Traço por kit (SURDINA/MARCA/POSTURA/ACORDE), missões diárias e 10 conquistas
 - [x] **18** — Terceiro mapa ESTÚDIO: complexo de gravação fechado por salas, console na MISTURA e o CONTROLE — caixa de vidro entre os sites que deixa VER mas corta bala e visão dos DIRACs
-- [ ] **19+** — modo espectador de replay, ranking sazonal, mais mapas
+- [x] **19** — Ranking sazonal: patente em decibéis (30–120) com calibração, divisões e a escada da dinâmica musical (SILENTE→PULSO), tela de patente no hub e cartão de dB no fim da partida
+- [ ] **20+** — modo espectador de replay, quarto mapa, arsenal vivo
 
 ## 🔧 Como o APK é feito (automático)
 

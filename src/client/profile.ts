@@ -16,6 +16,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AgentId, QualityId } from '../config/constants';
 import type { MapId, WeatherId } from '../config/maps';
 import { sessionState, settings } from '../core/state';
+import {
+  applyRanked,
+  freshRanked,
+  type Ranked,
+  type RankedOutcome,
+} from './ranked';
 
 export interface Career {
   matches: number; // partidas concluídas
@@ -41,6 +47,7 @@ export interface Profile {
   haptics: boolean;
   career: Career;
   daily: DailyState;
+  ranked: Ranked; // Etapa 19: patente sazonal (dB 30..120)
 }
 
 // ------------------------------------------------------------- missões diárias
@@ -250,9 +257,10 @@ export interface MatchRewards {
   unlocked: string[]; // nomes das conquistas novas
   missionsDone: string[]; // labels das missões fechadas hoje
   xpGained: number; // XP de missões creditado nesta partida
+  ranked: RankedOutcome | null; // Etapa 19: variação de patente (null = treino)
 }
 
-let lastRewards: MatchRewards = { unlocked: [], missionsDone: [], xpGained: 0 };
+let lastRewards: MatchRewards = { unlocked: [], missionsDone: [], xpGained: 0, ranked: null };
 
 export function getLastRewards(): Readonly<MatchRewards> {
   return lastRewards;
@@ -284,6 +292,7 @@ const DEFAULTS: Profile = {
   haptics: true,
   career: { ...EMPTY_CAREER },
   daily: freshDaily(''),
+  ranked: freshRanked(),
 };
 
 /** perfil em memória — leitura síncrona para as telas do hub */
@@ -291,6 +300,7 @@ let profile: Profile = {
   ...DEFAULTS,
   career: { ...EMPTY_CAREER },
   daily: freshDaily(''),
+  ranked: freshRanked(),
 };
 
 export function getProfile(): Readonly<Profile> {
@@ -330,6 +340,7 @@ export async function loadProfile(): Promise<void> {
         ...saved,
         career: { ...EMPTY_CAREER, ...(saved.career ?? {}) },
         daily: { ...freshDaily(''), ...(saved.daily ?? {}) },
+        ranked: { ...freshRanked(), ...(saved.ranked ?? {}) },
       };
     }
   } catch {
@@ -364,9 +375,9 @@ export async function saveProfile(): Promise<void> {
 
 /**
  * Registra uma partida encerrada (chamado uma vez por 'matchOver') e
- * alimenta a carreira, as missões diárias e as conquistas de uma vez.
- * Tudo que é memória acontece ANTES do primeiro await — o resumo já
- * está pronto quando o MatchOver desenha.
+ * alimenta a carreira, as missões diárias, as conquistas e a PATENTE
+ * sazonal de uma vez. Tudo que é memória acontece ANTES do primeiro
+ * await — o resumo já está pronto quando o MatchOver desenha.
  */
 export async function recordMatch(
   winner: 'CORO' | 'DIRAC',
@@ -377,6 +388,8 @@ export async function recordMatch(
     hits: number;
     plants: number; // plantios DESTE jogador (Etapa 17)
     deaths: number; // quedas desta partida (Etapa 17)
+    roundsWon: number; // placar final (Etapa 19 — patente)
+    roundsLost: number;
   }
 ): Promise<void> {
   const c = profile.career;
@@ -417,6 +430,15 @@ export async function recordMatch(
     }
   }
 
+  // --- patente sazonal (Etapa 19): o dB de combate da temporada ---
+  const rankedOutcome = applyRanked(profile.ranked, {
+    won: winner === 'CORO',
+    roundsWon: stats.roundsWon,
+    roundsLost: stats.roundsLost,
+    kills: stats.kills,
+    deaths: stats.deaths,
+  });
+
   // --- conquistas: o que cruzou a linha AGORA ---
   const after = unlockedIds(c);
   const unlocked: string[] = [];
@@ -424,14 +446,19 @@ export async function recordMatch(
     if (after.has(a.id) && !before.has(a.id)) unlocked.push(a.nome);
   }
 
-  lastRewards = { unlocked, missionsDone, xpGained };
+  lastRewards = { unlocked, missionsDone, xpGained, ranked: rankedOutcome };
   await saveProfile();
 }
 
 /** Apaga tudo (o usuário pediu no painel de configurações). */
 export async function resetProfile(): Promise<void> {
-  profile = { ...DEFAULTS, career: { ...EMPTY_CAREER }, daily: freshDaily('') };
-  lastRewards = { unlocked: [], missionsDone: [], xpGained: 0 };
+  profile = {
+    ...DEFAULTS,
+    career: { ...EMPTY_CAREER },
+    daily: freshDaily(''),
+    ranked: freshRanked(),
+  };
+  lastRewards = { unlocked: [], missionsDone: [], xpGained: 0, ranked: null };
   sessionState.agent = profile.agent;
   sessionState.map = profile.map;
   sessionState.weather = profile.weather;

@@ -18,6 +18,7 @@ import {
   rankTitle,
   saveProfile,
 } from './profile';
+import { PLACEMENTS, tierAt, tierLabel } from './ranked';
 import { sessionState } from '../core/state';
 import { SFX } from '../game/Audio';
 
@@ -29,12 +30,14 @@ export default function HomeScreen({
   onAgents,
   onSettings,
   onMissions,
+  onRank,
 }: {
   onPlay: () => void;
   onTraining: () => void;
   onAgents: () => void;
   onSettings: () => void;
   onMissions: () => void;
+  onRank: () => void;
 }) {
   const [briefing, setBriefing] = useState(false);
   const [mapTick, setMapTick] = useState(0); // re-render quando troca o mapa
@@ -51,6 +54,14 @@ export default function HomeScreen({
   const missionsDone = missions.filter((m) => m.done).length;
   const achievements = achievementViews(c);
   const achDone = achievements.filter((a) => a.done).length;
+
+  // Etapa 19: a patente sazonal vive no rodapé do hub e na coluna de módulos
+  const rk = profile.ranked;
+  const rkTier = tierAt(rk.rating);
+  const rkSub =
+    rk.played < PLACEMENTS
+      ? `calibração ${rk.played}/${PLACEMENTS}`
+      : `${tierLabel(rk.rating)} · ${rk.rating} dB`;
 
   const cycleMap = () => {
     const i = MAP_ORDER.indexOf(sessionState.map);
@@ -145,6 +156,15 @@ export default function HomeScreen({
         </FadeSlide>
         <FadeSlide delay={460}>
           <MenuButton
+            glyph="♪"
+            label="PATENTE"
+            sub={rkSub}
+            accent={rkTier.corCss}
+            onPress={() => { SFX.play('ui', 0.45); onRank(); }}
+          />
+        </FadeSlide>
+        <FadeSlide delay={540}>
+          <MenuButton
             glyph="⚙"
             label="AJUSTES"
             sub="sens · gráficos · som"
@@ -210,11 +230,13 @@ export default function HomeScreen({
 
       {/* ---- rodapé: temporada · carreira ---- */}
       <View style={hs.footer}>
-        <Text style={hs.footSeason}>TEMPORADA 1 · RISSONÂNCIA</Text>
+        <Text style={[hs.footSeason, { color: rkTier.corCss }]}>
+          TEMPORADA 1 · {tierLabel(rk.rating)}
+        </Text>
         <Text style={hs.footCareer}>
           {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
         </Text>
-        <Text style={hs.footVer}>v0.17 · mrspecterr/Pulso</Text>
+        <Text style={hs.footVer}>v0.19 · mrspecterr/Pulso</Text>
       </View>
 
       {/* ---- briefing: como jogar ---- */}

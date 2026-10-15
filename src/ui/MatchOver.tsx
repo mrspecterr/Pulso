@@ -4,6 +4,7 @@ import { CSS, ROUND } from '../config/constants';
 import { gameStats, inputState, roundState } from '../core/state';
 import { getLastRewards } from '../client/profile';
 import { SFX } from '../game/Audio';
+import type { RankedOutcome } from '../client/ranked';
 
 const MONO = 'monospace';
 
@@ -12,6 +13,8 @@ const MONO = 'monospace';
  * estatísticas; REINICIAR recomeça a partida do zero.
  * Etapa 17: as missões/conquistas que a partida acabou de fechar
  * aparecem aqui mesmo — a recompensa na hora em que ela acontece.
+ * Etapa 19: o cartão da PATENTE — dB ganho/perdido, promoção e
+ * rebaixamento, tudo na cor da patente nova.
  */
 export default function MatchOver() {
   const win = roundState.matchWinner === 'CORO';
@@ -19,6 +22,7 @@ export default function MatchOver() {
   const rewards = getLastRewards();
   const anyReward =
     rewards.unlocked.length > 0 || rewards.missionsDone.length > 0;
+  const rk = rewards.ranked;
 
   return (
     <View style={styles.root}>
@@ -56,6 +60,9 @@ export default function MatchOver() {
         </View>
       )}
 
+      {/* Etapa 19: a patente — o que a partida fez com o dB */}
+      {rk && <RankedCard rk={rk} />}
+
       <View style={styles.rowBtns}>
         <Pressable
           style={({ pressed }) => [styles.btn, pressed && styles.btnP]}
@@ -79,6 +86,81 @@ export default function MatchOver() {
     </View>
   );
 }
+
+/** Cartão de patente pós-partida (Etapa 19). */
+function RankedCard({ rk }: { rk: RankedOutcome }) {
+  const up = rk.delta >= 0;
+  return (
+    <View style={rk2.card}>
+      <View style={rk2.head}>
+        <Text style={[rk2.tier, { color: rk.corAfter }]}>{rk.labelAfter}</Text>
+        <Text style={[rk2.delta, { color: up ? CSS.TEAL : CSS.MAGENTA }]}>
+          {up ? '+' : ''}{rk.delta} dB
+        </Text>
+      </View>
+      <Text style={rk2.ratings}>
+        {rk.ratingBefore} → {rk.ratingAfter} dB
+        {rk.calibrating ? ` · calibração ${rk.placementsLeft === 0 ? 'concluída' : `restam ${rk.placementsLeft}`}` : ''}
+      </Text>
+      {rk.placedNow && (
+        <Text style={rk2.placed}>AFINAÇÃO CONCLUÍDA — PATENTE SELADA</Text>
+      )}
+      {rk.promoted && !rk.placedNow && (
+        <Text style={[rk2.move, { color: CSS.TEAL }]}>▲ SUBIU DE PATENTE</Text>
+      )}
+      {rk.demoted && (
+        <Text style={[rk2.move, { color: CSS.MAGENTA }]}>▼ CAIU DE PATENTE</Text>
+      )}
+    </View>
+  );
+}
+
+const rk2 = StyleSheet.create({
+  card: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(122,139,153,0.3)',
+    backgroundColor: 'rgba(11,15,20,0.8)',
+    paddingHorizontal: 22,
+    paddingVertical: 9,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  head: { flexDirection: 'row', alignItems: 'baseline' },
+  tier: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: 'bold',
+    letterSpacing: 4,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  delta: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginLeft: 12,
+  },
+  ratings: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.5, color: '#9FB4C2', marginTop: 3 },
+  placed: {
+    fontFamily: MONO,
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    color: '#FFD37A',
+    marginTop: 4,
+  },
+  move: {
+    fontFamily: MONO,
+    fontSize: 9.5,
+    fontWeight: 'bold',
+    letterSpacing: 2.5,
+    marginTop: 4,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+});
 
 const styles = StyleSheet.create({
   root: {
