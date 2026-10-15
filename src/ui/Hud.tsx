@@ -28,6 +28,7 @@ import MatchOver from './MatchOver';
 import Minimap from './Minimap';
 import PlantButton from './PlantButton';
 import ReloadButton from './ReloadButton';
+import ScopeOverlay from './ScopeOverlay';
 import TracoButtons from './TracoButtons';
 import TracoFlash from './TracoFlash';
 
@@ -73,6 +74,7 @@ interface Snap {
   board: { coro: Array<[string, number]>; dirac: Array<[string, number]> } | null; // placar de fim de rodada (Etapa 13)
   training: boolean; // CAMPO DE PROVAS (Etapa 16)
   trainMenu: boolean; // arsenal aberto no treino (Etapa 16)
+  scoped: boolean; // luneta da FERMATA aberta (Etapa 24)
 }
 
 function buildBoard() {
@@ -139,6 +141,7 @@ function readState(): Snap {
     board: roundState.phase === 'end' ? buildBoard() : null,
     training: sessionState.mode === 'treino',
     trainMenu: uiState.trainMenuOpen,
+    scoped: gameStats.scoped,
   };
 }
 
@@ -441,11 +444,20 @@ export default function Hud() {
       {/* ==== controles (fases de combate) ==== */}
       {showCombat ? (
         <>
-          <Crosshair />
+          {/* Etapa 24: luneta aberta — o retículo da ótica É a mira */}
+          {s.scoped ? <ScopeOverlay /> : <Crosshair />}
           <Hitmarker />
           <FireButton />
           <ReloadButton />
           <TracoButtons />
+          {/* botão LUNETA: só existe com a FERMATA em mãos (visual — o toque
+              é da camada de entrada) */}
+          {s.weapon === 'FERMATA' && !showPlant && s.hp > 0 ? (
+            <View pointerEvents="none" style={[styles.scopeBtn, s.scoped && styles.scopeBtnOn]}>
+              <Text style={[styles.scopeGlyph, s.scoped && styles.scopeGlyphOn]}>◎</Text>
+              <Text style={[styles.scopeLab, s.scoped && styles.scopeGlyphOn]}>LUNETA</Text>
+            </View>
+          ) : null}
         </>
       ) : null}
       {showPlant ? <PlantButton /> : null}
@@ -789,4 +801,27 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     color: CSS.TEAL,
   },
+
+  // ---- botão LUNETA da FERMATA (Etapa 24) — visual apenas; o toque
+  // ---- é da camada de entrada (mesma geometria de BTN.SCOPE)
+  scopeBtn: {
+    position: 'absolute',
+    right: 142,
+    bottom: 118,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(122,139,153,0.55)',
+    backgroundColor: 'rgba(11,15,20,0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scopeBtnOn: {
+    borderColor: CSS.TEAL,
+    backgroundColor: 'rgba(24,44,44,0.85)',
+  },
+  scopeGlyph: { fontFamily: MONO, fontSize: 15, color: '#CFE2EA', lineHeight: 18 },
+  scopeLab: { fontFamily: MONO, fontSize: 6, letterSpacing: 1.5, color: CSS.TEXT_DIM, marginTop: -2 },
+  scopeGlyphOn: { color: CSS.TEAL },
 });

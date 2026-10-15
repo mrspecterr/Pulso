@@ -54,10 +54,42 @@ for (let i = 0; i < 6; i++) {
   SPRAY_GLISSANDO.push([x, y]);
 }
 
+// TREMOLANDO — SMG (Etapa 24): a nota repetida. Os primeiros tiros vão onde
+// se aponta (recompensa o tracking), mas o cone é curto: sobe RÁPIDO e o
+// platô tece largo — dominar a rajada curta é dominar a arma.
+export const SPRAY_TREMOLANDO: Array<[number, number]> = [];
+for (let i = 0; i < 32; i++) {
+  let x = 0;
+  let y = 0;
+  if (i < 4) {
+    x = i % 2 === 0 ? 0.06 : -0.06;
+    y = i * 0.05;
+  } else if (i < 12) {
+    // subida íngreme: 800 rpm não perdoa o dedo preso
+    y = 0.4 + (i - 4) * 0.38;
+    x = i % 2 === 0 ? 0.18 : -0.18;
+  } else {
+    // platô baixo e tecendo LARGO (mais largo que o LEGATO)
+    y = 2.85 + Math.sin((i - 12) * 0.8) * 0.3;
+    x = Math.sin((i - 12) * 1.3) * 2.15;
+  }
+  SPRAY_TREMOLANDO.push([x, y]);
+}
+
+// FERMATA — rifle de precisão (Etapa 24): o ferrolho demora 1,5 s — a mira
+// já assentou quando o próximo tiro chega. Cada disparo é um primeiro tiro.
+export const SPRAY_FERMATA: Array<[number, number]> = [
+  [0, 0],
+  [0, 0],
+  [0, 0],
+];
+
 const TABLES: Record<WeaponId, Array<[number, number]>> = {
   LEGATO: SPRAY_LEGATO,
   STACCATO: SPRAY_STACCATO,
   GLISSANDO: SPRAY_GLISSANDO,
+  TREMOLANDO: SPRAY_TREMOLANDO,
+  FERMATA: SPRAY_FERMATA,
 };
 
 export const sprayAt = (index: number, weapon: WeaponId): [number, number] => {

@@ -36,6 +36,7 @@ import {
   PLAYER_RADIUS,
   QUALITY,
   ROUND,
+  SCOPE,
   TRACOS,
   TRACER_LENGTH,
   TRACER_MS,
@@ -721,6 +722,7 @@ function runGame(
     if (reloading || ammo === W.MAG) return;
     reloading = true;
     reloadStart = nowMs;
+    inputState.scoped = false; // Etapa 24: trocar o pente tira a cara da luneta
     gameStats.reloading = true;
     gameStats.reloadProgress = 0;
     hudEvents.emit({ type: 'reload' });
@@ -904,11 +906,21 @@ function runGame(
       return;
     }
 
-    // ---- bala única (STACCATO / LEGATO) ----
+    // ---- bala única (STACCATO / TREMOLANDO / LEGATO / FERMATA) ----
+    // Etapa 24: a FERMATA no quadril cospe pra todo lado — sem a luneta a
+    // bala sorteia um ponto no cone de erro (com a luneta: laser)
+    let aimX = sxDeg;
+    let aimY = syDeg;
+    if (W.HIP_SPREAD_DEG > 0 && !inputState.scoped) {
+      const rr = Math.sqrt(Math.random()) * W.HIP_SPREAD_DEG;
+      const ang = Math.random() * Math.PI * 2;
+      aimX += Math.cos(ang) * rr;
+      aimY += Math.sin(ang) * rr;
+    }
     tmpDir
       .copy(fwd)
-      .addScaledVector(right, Math.tan(sxDeg * DEG2RAD))
-      .addScaledVector(up, -Math.tan(syDeg * DEG2RAD))
+      .addScaledVector(right, Math.tan(aimX * DEG2RAD))
+      .addScaledVector(up, -Math.tan(aimY * DEG2RAD))
       .normalize();
 
     raycaster.set(camera.position, tmpDir);
@@ -966,7 +978,12 @@ function runGame(
     muzzleLight.intensity = 18;
     muzzleUntil = nowMs + MUZZLE_MS;
     weapon.onFire(); // recuo + clarão + cápsula do viewmodel
-    viewPunch = Math.min(viewPunch + (steady ? 0.3 : 0.7), 1.5); // chute da câmera
+    // o calibre da FERMATA chuta a câmera de verdade
+    viewPunch = Math.min(
+      viewPunch +
+        (roundState.weapon === 'FERMATA' ? 1.25 : steady ? 0.3 : 0.7),
+      1.6
+    );
 
     ammo--;
     gameStats.ammo = ammo;
@@ -1053,10 +1070,13 @@ function runGame(
         const sin = Math.sin(lookState.yaw);
         const cos = Math.cos(lookState.yaw);
         // POSTURA (Etapa 17): cotovelo fincado pesa o passo — o preço da mira
+        // Etapa 24: luneta aberta também pesa (a FERMATA pede parada)
+        const scopedNow = inputState.scoped && roundState.weapon === 'FERMATA';
         const step =
           MOVE_SPEED *
           A.speedMul *
           (now < steadyUntil ? TRACOS.POSTURA_MOVE_MUL : 1) *
+          (scopedNow ? SCOPE.MOVE_MUL : 1) *
           dt;
         const dx = (-sin * mz + cos * mx) * step;
         const dz = (-cos * mz - sin * mx) * step;
@@ -1068,8 +1088,16 @@ function runGame(
         }
       }
 
+      // Etapa 24 — a luneta só existe com a FERMATA em mãos e de pé:
+      // comprou outra arma, caiu ou a rodada resetou → ótica fecha
+      const scopedNow =
+        playerAlive && inputState.scoped && roundState.weapon === 'FERMATA';
+      if (!scopedNow) inputState.scoped = false;
+      gameStats.scoped = scopedNow;
+
       // IMPULSO: abertura do campo de visão (sensação de velocidade)
-      const targetFov = dashing ? 84 : 75;
+      // Etapa 24: luneta fecha o ângulo em 32° — a abertura espera a vez
+      const targetFov = dashing ? 84 : scopedNow ? WEAPONS.FERMATA.ZOOM_FOV : 75;
       if (Math.abs(camera.fov - targetFov) > 0.05) {
         camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
         camera.updateProjectionMatrix();
@@ -1327,6 +1355,7 @@ function runGame(
         reloading,
         reloadK: gameStats.reloadProgress,
         weapon: roundState.weapon,
+        scoped: gameStats.scoped, // Etapa 24: luneta some com o viewmodel
       });
       prevYaw = lookState.yaw;
       prevPitch = lookState.pitch;

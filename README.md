@@ -23,6 +23,7 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 | Mirar | Arrastar na metade direita |
 | Atirar | Segurar o botão de fogo (automático) |
 | Recarregar | Botão `R` |
+| Luneta (FERMATA) | Botão `◎ LUNETA` — zoom 2,3×, mira lenta, meio passo |
 | Plantar Diapasão | Segurar o botão `◈` dentro do site |
 | Comprar | Loja durante a fase de compra |
 | Traços | Botões à direita (3 por agente) — `◈` `▤` `⌾` · `⇢` `◎` `◉` · `⛨` `✸` `◫` · `♪` `◐` `❖` |
@@ -30,6 +31,12 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Arsenal vivo (v0.24)** — o quinto e o sexto calibre, a nota que repete e a nota que se segura:
+  - **TREMOLANDO · submetralhadora (1.600 dB)** — 800 rpm e pente de 32: a rajada que abre corredor. Os 4 primeiros tiros vão onde se olha; depois o padrão sobe íngreme e tece mais largo que o LEGATO — rajada curta e controlada ou nada
+  - **FERMATA · rifle de precisão (4.500 dB)** — a arma mais cara do jogo: 140 no corpo derruba qualquer um sem traje INTEGRAL, na cabeça ninguém resiste — e a **LUNETA** (botão ◎): FOV 75° → 32°, mira por arrasto lenta e fina, passo à meia velocidade e o retículo da ótica É a mira (o viewmodel some). Sem a luneta o cano cospe num cone de 6,5° — hipfire não
+  - **Ferreirinho animado** — após cada nota da FERMATA a alavanca sobe, puxa o ferrolho e fecha (viewmodel + som próprio); o clarão de boca e o chute de câmera são do calibre
+  - **Loja repaginada** — cinco armas na lista e os TRAJES em linha horizontal: a loja continua cabendo na tela deitada
+  - **Arsenal do hub atualizado** — fichas técnicas das duas novas armas (DPS, tiros p/ abater, dispersão/luneta) com artes próprias; as barras comparativas recalculam os tetos sozinhas
 - **Operadores humanoides (v0.23)** — o fim dos robôs flutuantes:
   - **Gente de verdade em campo** — aliados CORO e DIRACs deixam de ser cápsulas com propulsor: agora são operadores com **pernas e ciclo de caminhada** (o passo balança pelo deslocamento real do frame), braços em pose de mira segurando o **fuzil** (receiver, cano, coronha, pente e alça), **capacete com óculos táticos**, placa peitoral, ombreiras, cinto, mochila de rádio e botas
   - **Hitboxes intocadas** — corpo continua a cápsula (0.26×0.92) e cabeça a esfera (0.18) exatas; armadura, capacete e fuzil são filhos fora do raycast (`intersectObjects` não-recursivo): mira, dano e headshot idênticos ao de sempre
@@ -81,10 +88,10 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
   - **ECO · BATEDORA** (+10% velocidade) — ⇢ IMPULSO arremesso de 8,5m · ◎ SONAR revela através de paredes · ◉ MARCA rastreia o alvo na mira
   - **GRAVE · VANGUARDA** (−6% velocidade) — ⛨ COURAÇA escudo temporal de 50 · ✸ ONDA DE CHOQUE fere e arremessa · ◫ POSTURA mira morta com passo curto
   - **VIBRATO · REGENTE** (+2% velocidade) — ♪ CADÊNCIA reafina o esquadrão · ◐ RITARDANDO desacelera DIRACs próximos · ❖ ACORDE escudo harmônico do esquadrão
-- **Economia dB** — créditos por abates, vitórias e derrotas (cap 9.000); compre arsenais (STACCATO, GLISSANDO, LEGATO) e trajes com escudo.
+- **Economia dB** — créditos por abates, vitórias e derrotas (cap 9.000); compre arsenais (STACCATO, TREMOLANDO, GLISSANDO, LEGATO, FERMATA) e trajes com escudo.
 - **Rodadas** — fase de compra → ação → desfecho; primeira facção a 7 rodadas vence a partida.
 - **Diapasão** — o objetivo: plante no Site A ou B e proteja a carga por 40s.
-- **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas.
+- **LEGATO** — rifle com padrão de spray determinístico (treino de recuo real); STACCATO — pistola grátis de 12 balas; TREMOLANDO — SMG de 800 rpm; FERMATA — rifle de precisão de ferrolho com luneta.
 - **Operadores DIRAC** — bots com visão em cone, audição de tiros, strafe em combate, retake e silenciamento do Diapasão.
 - **Esquadrão 5v5 (v0.12)** — quatro aliados CORO (TENOR, ALTO, BAIXO, CONTRA) lutam ao seu lado: seguem sua formação, engajam DIRACs à vista, defendem o site plantado e caçam sozinhos se você cair. Kill feed no canto, barra do esquadrão no HUD, modo espectador quando você é abatido e vitória por varrida (`DIRAC VARRIDO DO MAPA`). Os DIRACs também cresceram para cinco — e agora revidam quando baleados durante o retake.
 - **Polimento e equilíbrio (v0.13)** — **minimapa tático** com a planta real do SUBSOLO (paredes dos colisores, seta de orientação, esquadrão, sites e Diapasão plantado; DIRACs acendem ao atirar, levar dano ou serem revelados pelo SONAR — sem wallhack); **dificuldade escalonada**: cada ponto DIRAC no placar deixa o esquadrão inimigo um nível mais afiado (precisão, reação, dano, percepção e retake — indicador `AMEAÇA` no HUD); **resgate da carga**: se você cair com o Diapasão, o aliado mais próximo pega a carga e planta por você (`◈ TENOR LEVA A CARGA`) — e se ele cair, outro assume; **placar de combate** no fim de cada rodada (abates por operador, CORO × DIRAC).
@@ -122,7 +129,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **21** — Cliente premium: transições crossfade entre todas as telas (a anterior recua em profundidade), splash cinematográfica em sequência, arte do hub em deriva Ken Burns, brilho varrendo o botão JOGAR e toque unificado com vibração (tap) em toda a interface
 - [x] **22** — Entrada de partida: cartão de entrada (mapa, clima, esquadrão, dicas rotativas) cobrindo a montagem do motor 3D, com saída em crossfade no primeiro quadro renderizado e guarda de 8s
 - [x] **23** — Operadores humanoides: pernas com ciclo de caminhada, braços com fuzil, capacete e óculos táticos para aliados e inimigos — hitboxes intocadas e ~10 meshes por personagem
-- [ ] **24+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
+- [x] **24** — Arsenal vivo: submetralhadora TREMOLANDO (800 rpm, pente 32) e rifle de precisão FERMATA com luneta de verdade (FOV 32°, sensibilidade reduzida, penalidade de quadril e ferreirinho animado)
+- [ ] **25+** — modo espectador de replay, quarto mapa, novos Traços de agente
 
 ## 🔧 Como o APK é feito (automático)
 

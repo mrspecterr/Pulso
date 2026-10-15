@@ -32,6 +32,14 @@ export default function AudioBridge() {
             // escopeta (Etapa 16): estrondo + a corredera bombeando depois
             SFX.play('fire_gli', 1, rand(0.92, 1.05));
             setTimeout(() => SFX.play('pump', 0.7, rand(0.95, 1.08)), 300);
+          } else if (roundState.weapon === 'FERMATA') {
+            // Etapa 24: a nota longa — o calibre estremece e o ferreirinho
+            // fecha o ciclo 0,45 s depois
+            SFX.play('fire_fermata', 1, rand(0.96, 1.02));
+            setTimeout(() => SFX.play('bolt', 0.75, rand(0.94, 1.06)), 450);
+          } else if (roundState.weapon === 'TREMOLANDO') {
+            // Etapa 24: a nota repetida — estalo curto e agudo
+            SFX.play('fire_trem', 0.82, rand(0.93, 1.09));
           } else {
             SFX.play(
               roundState.weapon === 'LEGATO' ? 'fire_legato' : 'fire_staccato',

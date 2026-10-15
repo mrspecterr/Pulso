@@ -380,12 +380,39 @@ sfx_pump = normalize(mix(
     silence(0.155) + gain(mech_click(0.03, 1350, 1.0), 0.5), # assento final
 ))
 
+# ------------------------------------------------- arsenal vivo (Etapa 24) -
+# Mesma regra: novos sons nascem sempre aqui embaixo (o RNG é compartilhado
+# e o script é determinístico — inserir no meio mudaria os WAVs existentes).
+
+# TREMOLANDO: SMG — estalo seco e alto, quase sem corpo: rajada que "cospe".
+# Mais brilho que o LEGATO, duração menor (o pente é rápido, o tiro é curto).
+sfx_fire_trem = gun_shot(115, 0.11, 4600, 600)
+
+# FERMATA: o rifle de precisão — a nota longa. Corpo grave e profundo com
+# sub-grave de estremecer, crack agudo na boca e o eco do subsolo correndo.
+sfx_fire_fermata = gun_shot(56, 0.34, 2200, 300, tail=1)
+sfx_fire_fermata = normalize(mix(
+    gain(sfx_fire_fermata, 0.95),
+    gain(apply_env(sine(44, 0.3), env_exp(0.3, 5)), 0.6),   # o calibre no peito
+    gain(hp(noise(0.012), 3000), 0.5),                     # chicote da boca do cano
+))
+
+# ferreirinho: o ferrolho da FERMATA — pesado, duas etapas + assento
+sfx_bolt = normalize(mix(
+    gain(mech_click(0.07, 380, 1.2), 1.0),                  # alavanca sobe
+    silence(0.12) + gain(mech_click(0.06, 640, 1.3), 1.0),  # puxa e ejeta
+    silence(0.2) + gain(mech_click(0.04, 980, 1.0), 0.55),  # fecha na câmara
+))
+
 # ---------------------------------------------------------------- salva --
 
 print('Gerando SFX do PULSO em', os.path.normpath(OUT))
 write('fire_staccato.wav', sfx_fire_staccato)
 write('fire_legato.wav', sfx_fire_legato)
 write('fire_gli.wav', sfx_fire_gli)
+write('fire_trem.wav', sfx_fire_trem)
+write('fire_fermata.wav', sfx_fire_fermata)
+write('bolt.wav', sfx_bolt)
 write('pump.wav', sfx_pump)
 write('fire_bot.wav', sfx_fire_bot)
 write('reload_click.wav', sfx_reload_click)
@@ -406,4 +433,4 @@ write('buy.wav', sfx_buy)
 write('ui.wav', sfx_ui)
 write('traco.wav', sfx_traco)
 write('hum.wav', sfx_hum)
-print('OK — 23 arquivos')
+print("OK — 26 arquivos")

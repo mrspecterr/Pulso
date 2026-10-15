@@ -19,6 +19,7 @@ export interface WeaponAnimState {
   reloading: boolean;
   reloadK: number; // 0..1
   weapon: WeaponId;
+  scoped: boolean; // Etapa 24: luneta da FERMATA aberta (viewmodel some)
 }
 
 const BASE_POS = new THREE.Vector3(0.24, -0.19, -0.46);
@@ -28,15 +29,22 @@ export class WeaponSystem {
   private rifle = new THREE.Group();
   private pistol = new THREE.Group();
   private shotgun = new THREE.Group();
+  private smg = new THREE.Group();
+  private sniper = new THREE.Group();
   private muzzleRifle = new THREE.Object3D();
   private muzzlePistol = new THREE.Object3D();
   private muzzleShotgun = new THREE.Object3D();
+  private muzzleSmg = new THREE.Object3D();
+  private muzzleSniper = new THREE.Object3D();
   // corredera da GLISSANDO: peça MÓVEL (desliza p/ trás e volta após o tiro)
   private pumpHand = new THREE.Mesh(
     new THREE.BoxGeometry(0.075, 0.064, 0.17),
     new THREE.MeshStandardMaterial({ color: 0x2c333c, roughness: 0.85, metalness: 0.1 })
   );
   private pumpT = 0; // contagem regressiva da animação de bombeamento (s)
+  // ferreirinho da FERMATA (Etapa 24): a alavanca sobe, puxa e fecha
+  private boltLever = new THREE.Group();
+  private boltT = 0; // contagem regressiva do ciclo do ferrolho (s)
   private flash: THREE.Mesh;
   private flashT = 0;
   private recoil = 0;
@@ -177,6 +185,115 @@ export class WeaponSystem {
     this.muzzleShotgun.position.set(0, 0.03, -0.87);
     this.shotgun.add(this.muzzleShotgun);
 
+    // ---------------- SMG TREMOLANDO (Etapa 24) ----------------
+    // Compacta, pente longo, cano curto: a arma que vive na mão.
+    const smgParts = new StaticBuckets(this.smg);
+    // receiver curto e alto + trilho
+    box(smgParts, 0.088, 0.115, 0.3, 0, 0, -0.02, gunMetal);
+    box(smgParts, 0.04, 0.018, 0.3, 0, 0.07, -0.04, gunMetal);
+    // cano curto + rosca do silenciador curto
+    const smgBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.22, 10),
+      accent
+    );
+    smgBarrel.rotation.x = Math.PI / 2;
+    smgBarrel.position.set(0, 0.01, -0.28);
+    smgParts.add(smgBarrel);
+    box(smgParts, 0.036, 0.036, 0.07, 0, 0.01, -0.41, gunMetal);
+    // pente LONGO e reto (a assinatura da SMG) — no material da arma
+    box(smgParts, 0.044, 0.26, 0.075, 0, -0.19, -0.04, gunMetal);
+    // punho vertical + guarda-mão com painéis
+    box(smgParts, 0.05, 0.13, 0.058, 0, -0.12, 0.09, polymer, -0.26);
+    box(smgParts, 0.08, 0.07, 0.2, 0, -0.02, -0.14, polymer);
+    box(smgParts, 0.02, 0.03, 0.12, 0.044, -0.012, -0.12, accent);
+    // coronha de arame dobrável (fininha, característica)
+    box(smgParts, 0.012, 0.012, 0.26, 0.03, 0.03, 0.24, accent);
+    box(smgParts, 0.012, 0.012, 0.26, -0.03, 0.03, 0.24, accent);
+    box(smgParts, 0.075, 0.03, 0.024, 0, 0.028, 0.37, polymer);
+    box(smgParts, 0.075, 0.045, 0.02, 0, -0.005, 0.37, polymer);
+    // mira: aro fantasma + ponto teal
+    box(smgParts, 0.03, 0.028, 0.014, 0, 0.066, -0.16, gunMetal);
+    box(smgParts, 0.011, 0.011, 0.011, 0, 0.08, -0.02, dot);
+    smgParts.build();
+    this.muzzleSmg.position.set(0, 0.01, -0.45);
+    this.smg.add(this.muzzleSmg);
+
+    // ---------------- RIFLE DE PRECISÃO FERMATA (Etapa 24) ----------------
+    // O cano comprido, a luneta em cima e o ferrolho: a nota longa.
+    const snipParts = new StaticBuckets(this.sniper);
+    // receiver robusto + trilho longo
+    box(snipParts, 0.09, 0.12, 0.4, 0, 0, 0.0, gunMetal);
+    box(snipParts, 0.05, 0.022, 0.44, 0, 0.072, -0.02, gunMetal);
+    // cano PESADO e comprido + freio de boca em duas câmaras
+    const snipBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.019, 0.019, 0.55, 10),
+      accent
+    );
+    snipBarrel.rotation.x = Math.PI / 2;
+    snipBarrel.position.set(0, 0.014, -0.62);
+    snipParts.add(snipBarrel);
+    box(snipParts, 0.05, 0.05, 0.06, 0, 0.014, -0.9, gunMetal);
+    box(snipParts, 0.056, 0.056, 0.05, 0, 0.014, -0.955, gunMetal);
+    // a LUNETA: tubo principal + objetiva + ocular + lente teal
+    const scopeTube = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.028, 0.3, 12),
+      gunMetal
+    );
+    scopeTube.rotation.x = Math.PI / 2;
+    scopeTube.position.set(0, 0.115, -0.08);
+    snipParts.add(scopeTube);
+    const scopeObj = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.038, 0.033, 0.07, 12),
+      gunMetal
+    );
+    scopeObj.rotation.x = Math.PI / 2;
+    scopeObj.position.set(0, 0.115, -0.26);
+    snipParts.add(scopeObj);
+    const scopeEye = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.034, 0.03, 0.06, 12),
+      gunMetal
+    );
+    scopeEye.rotation.x = Math.PI / 2;
+    scopeEye.position.set(0, 0.115, 0.08);
+    snipParts.add(scopeEye);
+    box(snipParts, 0.011, 0.011, 0.011, 0, 0.115, -0.295, dot);
+    // torres de ajuste da luneta
+    box(snipParts, 0.02, 0.045, 0.02, 0, 0.148, -0.08, gunMetal);
+    box(snipParts, 0.045, 0.02, 0.02, 0, 0.122, -0.08, gunMetal);
+    // pente caja + punho + coronha esculpida (a “cama” do calibre)
+    box(snipParts, 0.052, 0.14, 0.09, 0, -0.12, -0.06, gunMetal, 0.1);
+    box(snipParts, 0.052, 0.14, 0.06, 0, -0.12, 0.14, polymer, -0.3);
+    box(snipParts, 0.062, 0.1, 0.3, 0, -0.028, 0.32, polymer);
+    box(snipParts, 0.075, 0.115, 0.032, 0, -0.045, 0.47, polymer);
+    // bochecha da coronha + porta de ejeção
+    box(snipParts, 0.066, 0.045, 0.16, 0, 0.035, 0.3, polymer);
+    box(snipParts, 0.02, 0.04, 0.11, 0.047, 0.012, -0.02, accent);
+    // bipé dobrado sob o cano
+    box(snipParts, 0.012, 0.012, 0.16, 0.024, -0.012, -0.72, accent, 0.5);
+    box(snipParts, 0.012, 0.012, 0.16, -0.024, -0.012, -0.72, accent, 0.5);
+    snipParts.build();
+    // ferreirinho: alavanca MÓVEL na lateral direita do receiver
+    const boltMat = new THREE.MeshStandardMaterial({
+      color: 0x9aa6b2,
+      roughness: 0.35,
+      metalness: 0.5,
+    });
+    const boltShaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.085, 8),
+      boltMat
+    );
+    boltShaft.rotation.z = Math.PI / 2; // ao longo do X (pra fora da arma)
+    boltShaft.position.set(0.06, 0.02, 0.03);
+    const boltKnob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.016, 10, 8),
+      boltMat
+    );
+    boltKnob.position.set(0.105, 0.02, 0.03);
+    this.boltLever.add(boltShaft, boltKnob);
+    this.sniper.add(this.boltLever);
+    this.muzzleSniper.position.set(0, 0.014, -0.99);
+    this.sniper.add(this.muzzleSniper);
+
     this.rifle.traverse((o) => {
       o.castShadow = false;
       o.receiveShadow = false;
@@ -186,6 +303,14 @@ export class WeaponSystem {
       o.receiveShadow = false;
     });
     this.shotgun.traverse((o) => {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    });
+    this.smg.traverse((o) => {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    });
+    this.sniper.traverse((o) => {
       o.castShadow = false;
       o.receiveShadow = false;
     });
@@ -207,7 +332,9 @@ export class WeaponSystem {
     this.rifle.visible = true;
     this.pistol.visible = false;
     this.shotgun.visible = false;
-    this.root.add(this.rifle, this.pistol, this.shotgun);
+    this.smg.visible = false;
+    this.sniper.visible = false;
+    this.root.add(this.rifle, this.pistol, this.shotgun, this.smg, this.sniper);
     this.root.position.copy(BASE_POS);
     this.root.rotation.y = -0.07;
     camera.add(this.root);
@@ -234,21 +361,43 @@ export class WeaponSystem {
     this.rifle.visible = id === 'LEGATO';
     this.pistol.visible = id === 'STACCATO';
     this.shotgun.visible = id === 'GLISSANDO';
+    this.smg.visible = id === 'TREMOLANDO';
+    this.sniper.visible = id === 'FERMATA';
     this.recoil = 0.55; // "sacudida" de troca
     this.flashT = 0;
     this.pumpT = 0; // trocou de arma: corredera em repouso
+    this.boltT = 0; // ...e ferrolho fechado
   }
 
-  /** Chamado a cada tiro: recuo + clarão + cápsula ejetada (+ corredera). */
+  /** Chamado a cada tiro: recuo + clarão + cápsula ejetada (+ corredera/ferrolho). */
   onFire() {
-    this.recoil = Math.min(1, this.recoil + (this.cur === 'GLISSANDO' ? 0.95 : 0.55));
+    this.recoil = Math.min(
+      1,
+      this.recoil +
+        (this.cur === 'GLISSANDO'
+          ? 0.95
+          : this.cur === 'FERMATA'
+            ? 1.0
+            : this.cur === 'TREMOLANDO'
+              ? 0.34
+              : 0.55)
+    );
     this.flashT = 0.05;
     this.flash.rotation.z = Math.random() * Math.PI;
     const s = 1.0 + Math.random() * 0.6;
     this.flash.scale.setScalar(
-      this.cur === 'LEGATO' ? s : this.cur === 'GLISSANDO' ? s * 1.4 : s * 0.75
+      this.cur === 'LEGATO'
+        ? s
+        : this.cur === 'GLISSANDO'
+          ? s * 1.4
+          : this.cur === 'FERMATA'
+            ? s * 1.6
+            : this.cur === 'TREMOLANDO'
+              ? s * 0.7
+              : s * 0.75
     );
     if (this.cur === 'GLISSANDO') this.pumpT = 0.44; // bombeia depois do tiro
+    if (this.cur === 'FERMATA') this.boltT = 0.5; // ciclo do ferrolho
     this.ejectShell();
   }
 
@@ -279,13 +428,23 @@ export class WeaponSystem {
 
   /** Posição mundial da boca da arma (para tracer/luz). */
   muzzleWorld(out: THREE.Vector3): THREE.Vector3 {
-    const m =
-      this.cur === 'LEGATO'
-        ? this.muzzleRifle
-        : this.cur === 'GLISSANDO'
-          ? this.muzzleShotgun
-          : this.muzzlePistol;
+    const m = this.muzzleOf();
     return m.getWorldPosition(out);
+  }
+
+  private muzzleOf(): THREE.Object3D {
+    switch (this.cur) {
+      case 'LEGATO':
+        return this.muzzleRifle;
+      case 'GLISSANDO':
+        return this.muzzleShotgun;
+      case 'TREMOLANDO':
+        return this.muzzleSmg;
+      case 'FERMATA':
+        return this.muzzleSniper;
+      default:
+        return this.muzzlePistol;
+    }
   }
 
   update(dt: number, st: WeaponAnimState) {
@@ -326,6 +485,20 @@ export class WeaponSystem {
       this.pumpHand.position.z = -0.5;
     }
 
+    // ferreirinho da FERMATA (Etapa 24): a alavanca gira p/ cima (25%),
+    // puxa o ferrolho p/ trás (até 55%) e fecha — 0,5 s de ciclo
+    if (this.boltT > 0) {
+      this.boltT = Math.max(0, this.boltT - dt);
+      const p = 1 - this.boltT / 0.5; // 0..1 do ciclo
+      const lift = p < 0.25 ? Math.sin((p / 0.25) * (Math.PI / 2)) : 1;
+      const pull = p < 0.25 ? 0 : p < 0.55 ? (p - 0.25) / 0.3 : 1 - (p - 0.55) / 0.45;
+      this.boltLever.rotation.z = -lift * 1.1; // sobe a alavanca
+      this.boltLever.position.z = pull * 0.075; // puxa o corpo p/ trás
+    } else {
+      this.boltLever.rotation.z = 0;
+      this.boltLever.position.z = 0;
+    }
+
     // animação de recarga: mergulha, rola e volta
     let dipY = 0;
     let roll = 0;
@@ -337,7 +510,9 @@ export class WeaponSystem {
       pitch = -0.4 * Math.sin(Math.PI * k);
     }
 
-    this.root.visible = st.alive;
+    // Etapa 24: luneta aberta = ótica no olho, arma fora do quadro —
+    // o retículo da HUD é a mira de verdade
+    this.root.visible = st.alive && !st.scoped;
     this.root.position.set(
       BASE_POS.x + this.swayX + bobX,
       BASE_POS.y + this.swayY + bobY + dipY,
@@ -350,12 +525,7 @@ export class WeaponSystem {
     );
 
     // clarão preso à boca da arma ativa
-    const m =
-      this.cur === 'LEGATO'
-        ? this.muzzleRifle
-        : this.cur === 'GLISSANDO'
-          ? this.muzzleShotgun
-          : this.muzzlePistol;
+    const m = this.muzzleOf();
     const mp = this.flash.position;
     mp.set(m.position.x, m.position.y, m.position.z - 0.05);
     if (this.flashT > 0) {

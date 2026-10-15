@@ -28,6 +28,8 @@ const TIPS = [
   'Cair carregando o Diapasão não é o fim: o aliado mais próximo resgata.',
   'NOITE encurta a visão dos DIRACs; NEBLINA corta a percepção deles.',
   'Os TRAÇOS recarregam entre rodadas — gaste sem medo.',
+  'A FERMATA sem LUNETA cospe pra todo lado — aperte ◎ antes de cantar a nota.',
+  'TREMOLANDO: os 4 primeiros tiros vão onde você olha — rajada curta e fora.',
 ];
 
 export default function MatchLoading({

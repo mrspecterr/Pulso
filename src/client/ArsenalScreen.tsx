@@ -14,16 +14,20 @@ import { FadeSlide, MONO } from './parts';
 import { SFX } from '../game/Audio';
 
 type Sel = WeaponId | 'TRAJES';
-const ORDER: Sel[] = ['STACCATO', 'GLISSANDO', 'LEGATO', 'TRAJES'];
+const ORDER: Sel[] = ['STACCATO', 'TREMOLANDO', 'GLISSANDO', 'LEGATO', 'FERMATA', 'TRAJES'];
 
 const AMBER = '#FFD37A';
 
 // ---- números DERIVADOS dos specs reais (nada hardcode que possa mentir) ----
+const GUNS = ORDER.filter((w): w is WeaponId => w !== 'TRAJES');
 const rpmOf = (id: WeaponId) => Math.round(60000 / WEAPONS[id].CADENCE_MS);
+// teto de cada barra = o máximo do próprio arsenal (Etapa 24: com cinco
+// armas, os limites derivam sozinhos — a barra nunca mente)
+const MAX_SALVO = Math.max(...GUNS.map((w) => WEAPONS[w].DMG_BODY * WEAPONS[w].PELLETS));
+const MAX_RPM = Math.max(...GUNS.map(rpmOf));
+const MAX_MAG = Math.max(...GUNS.map((w) => WEAPONS[w].MAG));
 const DPS_MAX = Math.max(
-  ...ORDER.filter((w): w is WeaponId => w !== 'TRAJES').map(
-    (w) => (WEAPONS[w].DMG_BODY * WEAPONS[w].PELLETS * 1000) / WEAPONS[w].CADENCE_MS
-  )
+  ...GUNS.map((w) => (WEAPONS[w].DMG_BODY * WEAPONS[w].PELLETS * 1000) / WEAPONS[w].CADENCE_MS)
 );
 
 function weaponView(id: WeaponId) {
@@ -40,25 +44,31 @@ function weaponView(id: WeaponId) {
     stkBody: Math.ceil(100 / bodySalvo),
     stkHead: Math.ceil(100 / headSalvo),
     unit: W.PELLETS > 1 ? 'salvas' : 'tiros',
-    danoPct: bodySalvo / 72,
-    cadPct: rpmOf(id) / 600,
-    pentePct: W.MAG / 25,
+    danoPct: bodySalvo / MAX_SALVO,
+    cadPct: rpmOf(id) / MAX_RPM,
+    pentePct: W.MAG / MAX_MAG,
     dpsPct: (bodySalvo * 1000) / W.CADENCE_MS / DPS_MAX,
   };
 }
 const VIEWS: Record<WeaponId, ReturnType<typeof weaponView>> = {
   STACCATO: weaponView('STACCATO'),
+  TREMOLANDO: weaponView('TREMOLANDO'),
   GLISSANDO: weaponView('GLISSANDO'),
   LEGATO: weaponView('LEGATO'),
+  FERMATA: weaponView('FERMATA'),
 };
 
 const NOTA: Record<Sel, string> = {
   STACCATO:
     'de graça toda rodada. Um tiro na cabeça e um no corpo fecham o serviço — poupe os decibéis e compre TRAJE.',
+  TREMOLANDO:
+    '800 notas por minuto e pente de 32: a rajada que abre corredor. Os 4 primeiros tiros vão onde você olha — depois sobe e tece largo. Curta e controlada, ou nada.',
   GLISSANDO:
     'a rainha dos corredores: o salvo cheio fecha 72 no corpo a queima-roupa. O cone abre a partir do terceiro disparo — meça a distância antes de cantar.',
   LEGATO:
     '600 por minuto e headshot letal. Pare de andar para atirar: a mira morta é do GRAVE, a disciplina é sua.',
+  FERMATA:
+    'a nota que se segura: 140 no corpo derruba qualquer um sem traje INTEGRAL — na cabeça, ninguém resiste. Sem a LUNETA o cano cospe pra todo lado; de luneta aberta, você anda a meio passo.',
   TRAJES:
     'o traje absorve o dano ANTES da vida — 25 segura um salvo de GLISSANDO, 50 segura um headshot de STACCATO. Comprar cedo equilibra a economia do esquadrão inteiro.',
 };
@@ -197,7 +207,7 @@ export default function ArsenalScreen({ onBack }: { onBack: () => void }) {
                 <SpecRow label="DANO NO CORPO" value={String(v.bodySalvo)} note={v.W.PELLETS > 1 ? `salvo de ${v.W.PELLETS}×${v.W.DMG_BODY}` : 'por tiro'} />
                 <SpecRow label="DANO NA CABEÇA" value={String(v.headSalvo)} note={v.W.PELLETS > 1 ? `salvo de ${v.W.PELLETS}×${v.W.DMG_HEAD}` : 'por tiro'} />
                 <SpecRow label="CADÊNCIA" value={`${v.rpm} rpm`} note={`recarga em ${(v.W.RELOAD_MS / 1000).toFixed(1).replace('.', ',')}s`} />
-                <SpecRow label="PENTE" value={String(v.W.MAG)} note={v.W.SPREAD_DEG > 0 ? `dispersão ±${String(v.W.SPREAD_DEG).replace('.', ',')}°` : 'projétil único'} />
+                <SpecRow label="PENTE" value={String(v.W.MAG)} note={v.W.SPREAD_DEG > 0 ? `dispersão ±${String(v.W.SPREAD_DEG).replace('.', ',')}°` : v.W.ZOOM_FOV > 0 ? `luneta ${v.W.ZOOM_FOV}° de FOV` : 'projétil único'} />
 
                 <View style={ar.sep} />
                 <View style={ar.bigRow}>

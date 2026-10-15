@@ -39,6 +39,9 @@ export const LEFT_ZONE = 0.4; // 40% da largura da tela = joystick
 export const BTN = {
   FIRE: { right: 34, bottom: 30, size: 92 },
   RELOAD: { right: 142, bottom: 38, size: 64 },
+  // luneta da FERMATA (Etapa 24): acima da recarga — só existe com o rifle
+  // em mãos; a zona de PLANTAR (que fica logo acima) é verificada antes
+  SCOPE: { right: 142, bottom: 118, size: 56 },
   // dois Traços, empilhados acima da munição
   TRACO1: { right: 34, bottom: 208, w: 72, h: 72 },
   TRACO2: { right: 34, bottom: 290, w: 72, h: 72 },
@@ -68,8 +71,8 @@ export const TRACER_LENGTH = 60; // alcance máximo do rastro (m)
 export const MUZZLE_MS = 45; // clarão da boca
 export const IMPACT_MS = 70; // faísca no ponto de impacto
 
-// --- arsenal (Etapa 5: economia em dB · Etapa 16: GLISSANDO) ---
-export type WeaponId = 'STACCATO' | 'GLISSANDO' | 'LEGATO';
+// --- arsenal (Etapa 5: economia em dB · Etapa 16: GLISSANDO · Etapa 24: arsenal vivo) ---
+export type WeaponId = 'STACCATO' | 'TREMOLANDO' | 'GLISSANDO' | 'LEGATO' | 'FERMATA';
 
 export interface WeaponSpec {
   name: string;
@@ -85,6 +88,10 @@ export interface WeaponSpec {
   PELLETS: number;
   /** dispersão do cone de balins (graus de meia-ângulo). 0 = sem dispersão. */
   SPREAD_DEG: number;
+  /** Etapa 24: FOV da luneta (apenas a FERMATA mira por ótica). 0 = sem luneta. */
+  ZOOM_FOV: number;
+  /** Etapa 24: cone de erro ao atirar SEM a luneta (graus). 0 = sempre precisa. */
+  HIP_SPREAD_DEG: number;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
@@ -100,6 +107,23 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     desc: 'pistola de serviço',
     PELLETS: 1,
     SPREAD_DEG: 0,
+    ZOOM_FOV: 0,
+    HIP_SPREAD_DEG: 0,
+  },
+  TREMOLANDO: {
+    name: 'TREMOLANDO',
+    MAG: 32,
+    CADENCE_MS: 75, // 800 rpm: a nota repetida
+    RELOAD_MS: 1900,
+    DMG_BODY: 20,
+    DMG_HEAD: 52, // 2 na cabeça fecham — recompensa o tracking
+    BURST_RESET_MS: 200,
+    price: 1600,
+    desc: 'submetralhadora',
+    PELLETS: 1,
+    SPREAD_DEG: 0,
+    ZOOM_FOV: 0,
+    HIP_SPREAD_DEG: 0,
   },
   GLISSANDO: {
     name: 'GLISSANDO',
@@ -113,6 +137,8 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     desc: 'escopeta de corredera',
     PELLETS: 8,
     SPREAD_DEG: 2.8, // cone de dispersão (fecha a partir do 3º tiro)
+    ZOOM_FOV: 0,
+    HIP_SPREAD_DEG: 0,
   },
   LEGATO: {
     name: 'LEGATO',
@@ -126,8 +152,34 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
     desc: 'fuzil de assalto',
     PELLETS: 1,
     SPREAD_DEG: 0,
+    ZOOM_FOV: 0,
+    HIP_SPREAD_DEG: 0,
+  },
+  FERMATA: {
+    name: 'FERMATA',
+    MAG: 3,
+    CADENCE_MS: 1500, // ferrolho: uma nota longa por vez
+    RELOAD_MS: 3800,
+    DMG_BODY: 140, // mata sem traje e com traje parcial; INTEGRAL resiste com 10
+    DMG_HEAD: 260, // na cabeça não há traje que segure
+    BURST_RESET_MS: 1600, // cada tiro é um primeiro tiro
+    price: 4500,
+    desc: 'rifle de precisão',
+    PELLETS: 1,
+    SPREAD_DEG: 0,
+    ZOOM_FOV: 32, // luneta: FOV 75 → 32
+    HIP_SPREAD_DEG: 6.5, // no quadril, o cano cospra pra todo lado
   },
 };
+
+// --- luneta da FERMATA (Etapa 24) ---
+// Multiplicadores vigentes ENQUANTO a ótica está aberta: a mira por arrasto
+// fica lenta (precisão fina), o passo encolhe (operador fincado) e a viewmodel
+// some (o retículo da HUD é a mira de verdade).
+export const SCOPE = {
+  SENS_MUL: 0.42, // 75° → 32° de FOV: ~2,3× menos mundo, mesma manobra
+  MOVE_MUL: 0.5, // andar de luneta aberta
+} as const;
 
 // --- trajes reforçados (absorvem dano) ---
 export const SHIELDS = [

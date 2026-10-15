@@ -19,6 +19,7 @@ export const inputState = {
   restartQueued: false, // HUD pede reinício da partida (fim de jogo)
   tracoQueued: null as TracoKey | null, // Traço pedido pelo HUD
   agentSelectQueued: false, // HUD pede para voltar à seleção de agente
+  scoped: false, // Etapa 24: luneta da FERMATA aberta (botão LUNETA)
 };
 
 // Sessão (Etapa 8): o agente escolhido antes da partida; persiste entre
@@ -64,6 +65,7 @@ export const gameStats = {
   defuseProgress: 0, // 0..1 do canal de silenciamento
   fps: 0, // média móvel do quadro (Etapa 10: diagnóstico de desempenho)
   drawCalls: 0, // draw calls do último frame (diagnóstico)
+  scoped: false, // Etapa 24: luneta da FERMATA aberta (HUD desenha o retículo)
 };
 
 // Traços do agente (Etapa 7/8) — usos por rodada + recarga, por Traço.

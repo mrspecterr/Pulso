@@ -23,8 +23,10 @@ export const TITLE_BG: ImageSourcePropType = require('../../assets/art/title-bg.
 // desenhada a mão quando houver.
 export const WEAPON_ART: Record<WeaponId, ImageSourcePropType> = {
   STACCATO: require('../../assets/art/arma-staccato.jpg'),
+  TREMOLANDO: require('../../assets/art/arma-tremolando.jpg'),
   GLISSANDO: require('../../assets/art/arma-glissando.jpg'),
   LEGATO: require('../../assets/art/arma-legato.jpg'),
+  FERMATA: require('../../assets/art/arma-fermata.jpg'),
 };
 
 export const TRAJE_ART: ImageSourcePropType = require('../../assets/art/traje.jpg');

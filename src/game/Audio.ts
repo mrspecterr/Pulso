@@ -15,6 +15,9 @@ export type SfxKey =
   | 'fire_staccato'
   | 'fire_legato'
   | 'fire_gli'
+  | 'fire_trem'
+  | 'fire_fermata'
+  | 'bolt'
   | 'pump'
   | 'fire_bot'
   | 'reload_click'
@@ -40,6 +43,9 @@ const SRC: Record<SfxKey, number> = {
   fire_staccato: require('../../assets/sfx/fire_staccato.wav'),
   fire_legato: require('../../assets/sfx/fire_legato.wav'),
   fire_gli: require('../../assets/sfx/fire_gli.wav'),
+  fire_trem: require('../../assets/sfx/fire_trem.wav'),
+  fire_fermata: require('../../assets/sfx/fire_fermata.wav'),
+  bolt: require('../../assets/sfx/bolt.wav'),
   pump: require('../../assets/sfx/pump.wav'),
   fire_bot: require('../../assets/sfx/fire_bot.wav'),
   reload_click: require('../../assets/sfx/reload_click.wav'),
@@ -67,6 +73,9 @@ const POOL: Partial<Record<SfxKey, number>> = {
   fire_staccato: 4,
   fire_legato: 5,
   fire_gli: 3,
+  fire_trem: 6, // 800 rpm: a rajada precisa sobrepor-se sem cortar
+  fire_fermata: 2,
+  bolt: 2,
   pump: 2,
   fire_bot: 4,
   hit: 3,

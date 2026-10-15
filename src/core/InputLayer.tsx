@@ -31,6 +31,7 @@ import {
   LOOK_SENSITIVITY,
   PITCH_LIMIT,
   QUALITY_ORDER,
+  SCOPE,
 } from '../config/constants';
 import type { QualityId, TracoKey } from '../config/constants';
 import {
@@ -130,6 +131,13 @@ export default React.memo(function InputLayer({ active }: Props) {
     }
   };
 
+  // Etapa 24: luneta da FERMATA — alterna a ótica (o loop cuida de fechar
+  // quando a arma sai da mão, na recarga e na queda)
+  const toggleScope = () => {
+    inputState.scoped = !inputState.scoped;
+    SFX.play('ui', inputState.scoped ? 0.7 : 0.5);
+  };
+
   const cycleSens = () => {
     // Etapa 15: BAIXA entra no ciclo (0.7×) — quatro passos no HUD e no hub
     const order = [0.7, 1, 1.5, 2];
@@ -183,6 +191,16 @@ export default React.memo(function InputLayer({ active }: Props) {
     if (combatOn()) {
       if (inBtnCircle(x, y, BTN.FIRE)) return { kind: 'fire' };
       if (plantOn() && inRect(x, y, plantZone())) return { kind: 'plant' };
+      // luneta: só com a FERMATA em mãos — e cede lugar ao plantio
+      if (
+        roundState.weapon === 'FERMATA' &&
+        !plantOn() &&
+        playerVitals.hp > 0 &&
+        inBtnCircle(x, y, BTN.SCOPE)
+      ) {
+        toggleScope();
+        return { kind: 'none' };
+      }
       if (inBtnCircle(x, y, BTN.RELOAD)) {
         inputState.reloadQueued = true;
         return { kind: 'none' };
@@ -252,8 +270,13 @@ export default React.memo(function InputLayer({ active }: Props) {
           inputState.moveZ = -dy / JOY_RADIUS;
         }
       } else if (role.kind === 'look') {
-        lookState.yaw -= (t.pageX - role.x) * LOOK_SENSITIVITY * settings.sensMultiplier;
-        lookState.pitch -= (t.pageY - role.y) * LOOK_SENSITIVITY * settings.sensMultiplier;
+        // Etapa 24: luneta aberta = mira fina (o mundo está 2,3× mais perto)
+        const scopeMul =
+          inputState.scoped && roundState.weapon === 'FERMATA' ? SCOPE.SENS_MUL : 1;
+        lookState.yaw -=
+          (t.pageX - role.x) * LOOK_SENSITIVITY * settings.sensMultiplier * scopeMul;
+        lookState.pitch -=
+          (t.pageY - role.y) * LOOK_SENSITIVITY * settings.sensMultiplier * scopeMul;
         lookState.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, lookState.pitch));
         role.x = t.pageX;
         role.y = t.pageY;
