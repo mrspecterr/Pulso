@@ -20,7 +20,7 @@
 import * as THREE from 'three';
 import { ALLIES, COLORS, ROUND } from '../config/constants';
 import type { MapDef } from '../config/maps';
-import { StaticBuckets } from '../core/merge';
+import { animateOperatorWalk, createOperatorRig } from './OperatorModel';
 import { combatModifiers, hudEvents, roundState } from '../core/state';
 import type { Combatant } from './Bots';
 
@@ -46,6 +46,8 @@ interface Ally {
   barMat: THREE.MeshBasicMaterial;
   bodyMat: THREE.MeshStandardMaterial;
   headMat: THREE.MeshStandardMaterial;
+  legL: THREE.Group; // Etapa 23: pernas do operador humanoide
+  legR: THREE.Group;
   hp: number;
   phase: AllyPhase;
   phaseT: number;
@@ -168,43 +170,14 @@ export class AllySquad {
     this.solids = solids;
     this.map = map;
 
-    const bodyGeo = new THREE.CapsuleGeometry(0.26, 0.92, 6, 12);
-    const headGeo = new THREE.SphereGeometry(0.18, 16, 12);
     const barGeo = new THREE.PlaneGeometry(0.72, 0.075);
-    const visorGeo = new THREE.BoxGeometry(0.2, 0.06, 0.05);
-
-    // armadura CORO (teal, mais leve que a DIRAC)
-    const armorGeo = new THREE.BoxGeometry(0.36, 0.44, 0.2);
-    const packGeo = new THREE.BoxGeometry(0.32, 0.42, 0.15);
-    const shoulderGeo = new THREE.BoxGeometry(0.15, 0.1, 0.24);
-    const gunGeo = new THREE.BoxGeometry(0.06, 0.1, 0.46);
-    const armorMat = new THREE.MeshStandardMaterial({
-      color: 0x1f3a38,
-      roughness: 0.55,
-      metalness: 0.22,
-    });
-    const packMat = new THREE.MeshStandardMaterial({
-      color: 0x1a3231,
-      roughness: 0.65,
-      metalness: 0.14,
-    });
-    const visorMat = new THREE.MeshBasicMaterial({ color: COLORS.TEAL });
 
     ALLY_NAMES.forEach((name, id) => {
-      const bodyMat = new THREE.MeshStandardMaterial({
-        color: 0x21332e,
-        roughness: 0.7,
-        metalness: 0.2,
-        emissive: COLORS.TEAL,
-        emissiveIntensity: 0.1,
-      });
-      const headMat = new THREE.MeshStandardMaterial({
-        color: 0x273a35,
-        roughness: 0.6,
-        metalness: 0.25,
-        emissive: COLORS.TEAL,
-        emissiveIntensity: 0.2,
-      });
+      // Etapa 23 — o CORO também é gente: operador humanoide com
+      // traje verde-petróleo e óculos teal (mesmo hitbox de sempre)
+      const rig = createOperatorRig('CORO');
+      const { group, body, head, bodyMat, headMat, legL, legR } = rig;
+
       const barMat = new THREE.MeshBasicMaterial({
         color: COLORS.TEAL,
         transparent: true,
@@ -212,40 +185,10 @@ export class AllySquad {
         depthWrite: false,
       });
 
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.position.y = 0.98;
-      body.castShadow = true;
-
-      // peças fundidas por material (mesma economia dos DIRACs)
-      const armor = new StaticBuckets(body);
-      const chest = new THREE.Mesh(armorGeo, armorMat);
-      chest.position.set(0, 0.14, 0.13);
-      const pack = new THREE.Mesh(packGeo, packMat);
-      pack.position.set(0, 0.12, -0.21);
-      const shL = new THREE.Mesh(shoulderGeo, armorMat);
-      shL.position.set(-0.3, 0.36, 0);
-      const shR = new THREE.Mesh(shoulderGeo, armorMat);
-      shR.position.set(0.3, 0.36, 0);
-      const gun = new THREE.Mesh(gunGeo, packMat);
-      gun.position.set(0.26, 0.02, 0.16);
-      gun.rotation.x = 0.06;
-      for (const piece of [chest, pack, shL, shR, gun]) {
-        piece.castShadow = true;
-        armor.add(piece);
-      }
-      armor.build();
-
-      const head = new THREE.Mesh(headGeo, headMat);
-      head.position.y = 1.66;
-      head.castShadow = true;
-      const visor = new THREE.Mesh(visorGeo, visorMat);
-      visor.position.set(0, 0.02, 0.17);
-      head.add(visor);
       const bar = new THREE.Mesh(barGeo, barMat);
       bar.position.y = 2.0;
 
-      group.add(body, head, bar);
+      group.add(bar);
       const [fx, fz] = FORMATION[id];
       group.position.set(this.map.spawn[0] + fx, 0, this.map.spawn[1] + fz);
       scene.add(group);
@@ -260,6 +203,8 @@ export class AllySquad {
         barMat,
         bodyMat,
         headMat,
+        legL,
+        legR,
         hp: ALLIES.HP,
         phase: 'escort',
         phaseT: 0,
@@ -319,6 +264,8 @@ export class AllySquad {
       const [fx, fz] = FORMATION[i];
       a.group.position.set(this.map.spawn[0] + fx, 0, this.map.spawn[1] + fz);
       a.group.scale.setScalar(1);
+      a.legL.rotation.x = 0; // Etapa 23: de pé na formação
+      a.legR.rotation.x = 0;
       a.bar.visible = true;
       a.bodyMat.emissiveIntensity = 0.1;
       a.headMat.emissiveIntensity = 0.2;
@@ -353,6 +300,11 @@ export class AllySquad {
       a.phase = 'dying';
       a.phaseT = performance.now();
       a.bar.visible = false;
+      // assenta o corpo antes do tombo (bob do passo)
+      a.group.position.y = 0;
+      a.group.rotation.z = 0;
+      a.legL.rotation.x = 0;
+      a.legR.rotation.x = 0;
       hudEvents.emit({ type: 'feed', killer, victim: a.name });
       return { killed: true };
     }
@@ -585,10 +537,12 @@ export class AllySquad {
       if (a.walking) {
         a.group.position.y = Math.abs(Math.sin(a.walkT)) * 0.035;
         a.group.rotation.z = Math.sin(a.walkT) * 0.04;
+        animateOperatorWalk(a, a.walkT, true, dt); // Etapa 23: as pernas
         a.walking = false; // reativado por step() neste frame
       } else {
         a.group.position.y = 0;
         a.group.rotation.z = 0;
+        animateOperatorWalk(a, a.walkT, false, dt);
       }
 
       if (a.phase === 'dying') {

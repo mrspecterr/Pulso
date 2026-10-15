@@ -30,6 +30,11 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Operadores humanoides (v0.23)** — o fim dos robôs flutuantes:
+  - **Gente de verdade em campo** — aliados CORO e DIRACs deixam de ser cápsulas com propulsor: agora são operadores com **pernas e ciclo de caminhada** (o passo balança pelo deslocamento real do frame), braços em pose de mira segurando o **fuzil** (receiver, cano, coronha, pente e alça), **capacete com óculos táticos**, placa peitoral, ombreiras, cinto, mochila de rádio e botas
+  - **Hitboxes intocadas** — corpo continua a cápsula (0.26×0.92) e cabeça a esfera (0.18) exatas; armadura, capacete e fuzil são filhos fora do raycast (`intersectObjects` não-recursivo): mira, dano e headshot idênticos ao de sempre
+  - **Leitura de time** — óculos e LEDs (ombro e mochila) na cor do esquadrão; a silhueta do SONAR/MARCA acompanha o corpo inteiro humanoide
+  - **Economia preservada** — ~10 meshes por personagem (o robot usava ~7): tudo que não anda vira uma única mesh fundida por material; só as duas pernas são pivôs animados
 - **Entrada de partida (v0.22)** — o fim da tela preta de carga:
   - **Cartão de entrada** — apertar JOGAR agora atravessa uma tela de entrada de verdade: mapa em destaque na cor própria, clima com tagline, esquadrão CORO ⟷ DIRAC, modo da sessão e dicas da estação rotativas — tudo honesto com o que o motor faz
   - **Saída no primeiro quadro** — o motor 3D avisa quando o primeiro quadro chega na tela (sinal `onReady` do Game) e o cartão sai em crossfade de 420ms: o jogador nunca vê a montagem crua da cena
@@ -116,7 +121,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **20** — Arsenal & Dossiê: galeria de armas com arte por arma e ficha técnica real do motor (DPS, salvas, economia), dossiê do operador com 12 stats de carreira, etiquetas de estilo derivadas e progresso de conquistas
 - [x] **21** — Cliente premium: transições crossfade entre todas as telas (a anterior recua em profundidade), splash cinematográfica em sequência, arte do hub em deriva Ken Burns, brilho varrendo o botão JOGAR e toque unificado com vibração (tap) em toda a interface
 - [x] **22** — Entrada de partida: cartão de entrada (mapa, clima, esquadrão, dicas rotativas) cobrindo a montagem do motor 3D, com saída em crossfade no primeiro quadro renderizado e guarda de 8s
-- [ ] **23+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
+- [x] **23** — Operadores humanoides: pernas com ciclo de caminhada, braços com fuzil, capacete e óculos táticos para aliados e inimigos — hitboxes intocadas e ~10 meshes por personagem
+- [ ] **24+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
 
 ## 🔧 Como o APK é feito (automático)
 

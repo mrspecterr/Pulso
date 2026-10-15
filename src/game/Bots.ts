@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { BOTS, COLORS, DEFUSE, DIFFICULTY, TRACOS } from '../config/constants';
 import type { MapDef, WeatherDef } from '../config/maps';
 import { WEATHERS } from '../config/maps';
-import { StaticBuckets } from '../core/merge';
+import { animateOperatorWalk, createOperatorRig } from './OperatorModel';
 import { hudEvents } from '../core/state';
 
 /**
@@ -49,6 +49,11 @@ interface Bot {
   headMat: THREE.MeshStandardMaterial;
   visorMat: THREE.MeshBasicMaterial; // por bot: pisca branco quando cego
   ping: THREE.Mesh; // SONAR: silhueta visível através de paredes (Etapa 8)
+  legL: THREE.Group; // Etapa 23: pernas do operador humanoide
+  legR: THREE.Group;
+  walkT: number; // fase do ciclo de caminhada
+  prevX: number; // posição no frame passado — detecta o passo
+  prevZ: number;
   hp: number;
   phase: BotPhase;
   phaseT: number; // timestamp de entrada na fase
@@ -171,45 +176,14 @@ export class BotSquad {
     this.solids = solids;
     this.map = map;
 
-    const bodyGeo = new THREE.CapsuleGeometry(0.26, 0.92, 6, 12);
-    const headGeo = new THREE.SphereGeometry(0.18, 16, 12);
+    // Etapa 23 — o DIRAC é um OPERADOR humanoide (pernas, braços em pose
+    // de mira, capacete e óculos): mesmo hitbox, mesma silhueta de raio
     const barGeo = new THREE.PlaneGeometry(0.72, 0.075);
-    const visorGeo = new THREE.BoxGeometry(0.2, 0.06, 0.05);
-
-    // peças de armadura DIRAC (compartilhadas; filhos do corpo — não entram
-    // no raycast, que só testa corpo e cabeça)
-    const armorGeo = new THREE.BoxGeometry(0.36, 0.44, 0.2);
-    const packGeo = new THREE.BoxGeometry(0.32, 0.42, 0.15);
-    const shoulderGeo = new THREE.BoxGeometry(0.15, 0.1, 0.24);
-    const gunGeo = new THREE.BoxGeometry(0.06, 0.1, 0.46);
-    const thrusterGeo = new THREE.BoxGeometry(0.12, 0.06, 0.03);
-    const armorMat = new THREE.MeshStandardMaterial({
-      color: 0x3a3448,
-      roughness: 0.55,
-      metalness: 0.22,
-    });
-    const packMat = new THREE.MeshStandardMaterial({
-      color: 0x2e2a3c,
-      roughness: 0.65,
-      metalness: 0.14,
-    });
-    const thrusterMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
 
     this.map.botRoutes.forEach((route, id) => {
-      const bodyMat = new THREE.MeshStandardMaterial({
-        color: 0x232c38,
-        roughness: 0.7,
-        metalness: 0.2,
-        emissive: COLORS.MAGENTA,
-        emissiveIntensity: 0.1,
-      });
-      const headMat = new THREE.MeshStandardMaterial({
-        color: 0x2b3542,
-        roughness: 0.6,
-        metalness: 0.25,
-        emissive: COLORS.MAGENTA,
-        emissiveIntensity: 0.2,
-      });
+      const rig = createOperatorRig('DIRAC');
+      const { group, body, head, bodyMat, headMat, visorMat, legL, legR } = rig;
+
       const barMat = new THREE.MeshBasicMaterial({
         color: 0xf2fbff,
         transparent: true,
@@ -217,41 +191,6 @@ export class BotSquad {
         depthWrite: false,
       });
 
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.position.y = 0.98;
-      body.castShadow = true;
-
-      // armadura + propulsor + fuzil — fundidos por material (Etapa 10):
-      // as peças nunca se movem entre si, então viram 3 meshes em vez de 5
-      const armor = new StaticBuckets(body);
-      const chest = new THREE.Mesh(armorGeo, armorMat);
-      chest.position.set(0, 0.14, 0.13);
-      const pack = new THREE.Mesh(packGeo, packMat);
-      pack.position.set(0, 0.12, -0.21);
-      const shL = new THREE.Mesh(shoulderGeo, armorMat);
-      shL.position.set(-0.3, 0.36, 0);
-      const shR = new THREE.Mesh(shoulderGeo, armorMat);
-      shR.position.set(0.3, 0.36, 0);
-      const gun = new THREE.Mesh(gunGeo, packMat);
-      gun.position.set(0.26, 0.02, 0.16);
-      gun.rotation.x = 0.06;
-      const thruster = new THREE.Mesh(thrusterGeo, thrusterMat);
-      thruster.position.set(0, 0.4, -0.51); // corpo-espaço (pack + local)
-      for (const piece of [chest, pack, shL, shR, gun, thruster]) {
-        piece.castShadow = true;
-        armor.add(piece);
-      }
-      armor.build();
-
-      const head = new THREE.Mesh(headGeo, headMat);
-      head.position.y = 1.66;
-      head.castShadow = true;
-      // visor — o "olho" magenta do operador (frente local +Z)
-      const visorMat = new THREE.MeshBasicMaterial({ color: COLORS.MAGENTA });
-      const visor = new THREE.Mesh(visorGeo, visorMat);
-      visor.position.set(0, 0.02, 0.17);
-      head.add(visor);
       const bar = new THREE.Mesh(barGeo, barMat);
       bar.position.y = 2.0;
 
@@ -265,12 +204,13 @@ export class BotSquad {
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
-      const ping = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.98, 4, 10), pingMat);
-      ping.position.y = 0.98;
+      // silhueta humanoide inteira (pernas inclusas)
+      const ping = new THREE.Mesh(new THREE.CapsuleGeometry(0.33, 1.08, 4, 10), pingMat);
+      ping.position.y = 0.9;
       ping.renderOrder = 999;
       ping.visible = false;
 
-      group.add(body, head, bar, ping);
+      group.add(bar, ping);
       group.position.set(route[0][0], 0, route[0][1]);
       scene.add(group);
 
@@ -289,6 +229,11 @@ export class BotSquad {
         headMat,
         visorMat,
         ping,
+        legL,
+        legR,
+        walkT: Math.random() * Math.PI * 2, // dessincroniza os passos
+        prevX: route[0][0],
+        prevZ: route[0][1],
         hp: BOTS.HP,
         phase: 'patrol',
         phaseT: 0,
@@ -375,6 +320,11 @@ export class BotSquad {
       bot.phase = 'dying';
       bot.phaseT = performance.now();
       bot.bar.visible = false;
+      // assenta o corpo no chão antes do tombo (o bob do passo para)
+      bot.group.position.y = 0;
+      bot.group.rotation.z = 0;
+      bot.legL.rotation.x = 0;
+      bot.legR.rotation.x = 0;
       if (killer) {
         // Etapa 12: kill feed — quem abateu um operador DIRAC
         hudEvents.emit({ type: 'feed', killer, victim: `DIRAC ${bot.id + 1}` });
@@ -591,6 +541,11 @@ export class BotSquad {
       b.group.rotation.set(0, 0, 0);
       b.group.position.set(b.route[0][0], 0, b.route[0][1]);
       b.group.scale.setScalar(1);
+      b.walkT = Math.random() * Math.PI * 2;
+      b.prevX = b.route[0][0]; // sem passo fantasma no renascer
+      b.prevZ = b.route[0][1];
+      b.legL.rotation.x = 0;
+      b.legR.rotation.x = 0;
       b.bar.visible = true;
       b.bodyMat.emissiveIntensity = 0.1;
       b.headMat.emissiveIntensity = 0.2;
@@ -643,6 +598,22 @@ export class BotSquad {
         b.visorMat.color.setRGB(0.28, 0.3, 0.33);
       } else if (b.visorMat.color.r !== COLORS.MAGENTA / 16777216) {
         b.visorMat.color.setHex(COLORS.MAGENTA);
+      }
+
+      // Etapa 23 — o ciclo de caminhada: as pernas balançam pelo
+      // deslocamento REAL do frame passado (nada de fase por estado de
+      // IA — strafe, patrulha e retake andam do mesmo jeito)
+      if (b.phase !== 'dying' && b.phase !== 'dead') {
+        const mdx = b.group.position.x - b.prevX;
+        const mdz = b.group.position.z - b.prevZ;
+        const moving = mdx * mdx + mdz * mdz > 1e-8;
+        if (moving) b.walkT += dt * 9;
+        animateOperatorWalk(b, b.walkT, moving, dt);
+        // bob de passo + balanço de ombro, como os aliados
+        b.group.position.y = moving ? Math.abs(Math.sin(b.walkT)) * 0.03 : 0;
+        b.group.rotation.z = moving ? Math.sin(b.walkT) * 0.035 : 0;
+        b.prevX = b.group.position.x;
+        b.prevZ = b.group.position.z;
       }
 
       if (b.phase === 'dying') {
