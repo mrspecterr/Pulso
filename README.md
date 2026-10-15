@@ -30,6 +30,12 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Cliente premium (v0.21)** — a camada de apresentação no padrão dos grandes:
+  - **Navegação viva** — nenhuma tela troca "à seco": a anterior continua montada enquanto a nova entra por cima em crossfade de 280ms com deslize sutil, e a antiga recua em profundidade (scale-down); entrar/sair de partida é fade puro, porque a montagem do motor 3D já pesa o suficiente
+  - **Entrada cinematográfica** — a splash MONTA a si mesma em sequência (fundo → logo com peso de assinatura → tagline → equalizer → convite → rodapé) sobre um único driver Animated, sem re-render
+  - **Arte viva (Ken Burns)** — a splash art do operador no hub e a base da galeria derivam em zoom/pan lento de 32s: a tela nunca está parada
+  - **Brilho de aço no JOGAR** — varredura diagonal periódica no CTA principal, cortada pela borda do botão
+  - **tap() — o toque do PULSO** — click de terminal + vibração leve sempre juntos (impacto médio em confirmar operador e entrar em partida), respeitando o interruptor de haptics dos ajustes; MenuButton agora AFUNDA no dedo com mola de escala
 - **Arsenal & Dossiê (v0.20)** — o hub fecha as contas do jogador:
   - **ARSENAL** — a galeria de armas com **arte ilustrada por arma** (a mesma direção das artes dos operadores): STACCATO, GLISSANDO e LEGATO com a **ficha técnica real do motor** — dano por salvo (corpo/cabeça), cadência em rpm, pente, recarga, dispersão, **DPS teórico** e quantos disparos fecham um operador — além das barras comparativas e uma nota de campo por arma; os **TRAJES REFORÇADOS** têm vitrine própria (absorção e preço) e o bloco **A CONTA DA RODADA** documenta a economia de verdade (o texto antigo do briefing prometia +300 de plantio que o código não pagava — corrigido)
   - **DOSSIÊ DO OPERADOR** — o cartão de perfil do hub virou porta de entrada: **grade com 12 estatísticas de carreira** (partidas, vitórias, aproveitamento, K/D, abates, quedas, média, recorde, headshots, precisão, plantios, imaculadas), **ETIQUETAS DE ESTILO** que o jogo deriva dos próprios números (VIRTUOSE, CIRÚRGICO, AFINADO, SEMEADOR, ÍNTEGRO, VETERANO, IMBATÍVEL — até 4 por retrato), patente da temporada resumida com progresso e as **próximas 3 conquistas** com barras honestas
@@ -104,7 +110,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **18** — Terceiro mapa ESTÚDIO: complexo de gravação fechado por salas, console na MISTURA e o CONTROLE — caixa de vidro entre os sites que deixa VER mas corta bala e visão dos DIRACs
 - [x] **19** — Ranking sazonal: patente em decibéis (30–120) com calibração, divisões e a escada da dinâmica musical (SILENTE→PULSO), tela de patente no hub e cartão de dB no fim da partida
 - [x] **20** — Arsenal & Dossiê: galeria de armas com arte por arma e ficha técnica real do motor (DPS, salvas, economia), dossiê do operador com 12 stats de carreira, etiquetas de estilo derivadas e progresso de conquistas
-- [ ] **21+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
+- [x] **21** — Cliente premium: transições crossfade entre todas as telas (a anterior recua em profundidade), splash cinematográfica em sequência, arte do hub em deriva Ken Burns, brilho varrendo o botão JOGAR e toque unificado com vibração (tap) em toda a interface
+- [ ] **22+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
 
 ## 🔧 Como o APK é feito (automático)
 

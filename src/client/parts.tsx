@@ -2,11 +2,30 @@
 // tipografia monoespaçada (a identidade terminal do PULSO), vidro escuro
 // sobre as splash arts, e animações leves: um driver Animated compartilhado
 // por interpolação, zero re-render por frame.
+//
+// Etapa 21 — o kit de “cliente premium”: tap() (som + vibração em um
+// só gesto), MenuButton elástico, Shine (o brilho que varre o botão
+// JOGAR) e KenBurns (a arte do hub respirando em zoom lento).
 import React, { useEffect, useRef } from 'react';
-import { Animated, DimensionValue, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, DimensionValue, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { CSS } from '../config/constants';
+import { settings } from '../core/state';
+import { SFX } from '../game/Audio';
 
 export const MONO = 'monospace';
+
+// ------------------------------------------------------------- tap()
+// O toque de interface do PULSO: o click de terminal + a vibração leve
+// do aparelho — sempre juntos, sempre do mesmo jeito. Taps fortes
+// (confirmar operador, entrar em partida) usam impacto médio.
+export function tap(strong = false) {
+  SFX.play('ui', strong ? 0.8 : 0.45);
+  if (!settings.haptics) return;
+  Haptics.impactAsync(
+    strong ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light
+  ).catch(() => {});
+}
 
 // ------------------------------------------------------------- Equalizer
 // Barras de "ressonância" — a assinatura visual do PULSO. Um único driver
@@ -74,6 +93,81 @@ const eq = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });
 
+// ------------------------------------------------------------- KenBurns
+// A arte de fundo do hub em deriva lenta (zoom + pan sutil em vaivém de
+// 32s) — o efeito “Ken Burns” dos lobbies dos shooters grandes: a tela
+// nunca está parada, e é de graça (transform nativo, zero re-render).
+export function KenBurns({
+  children,
+  amp = 1,
+  style,
+}: {
+  children: React.ReactNode;
+  amp?: number; // 1 = deriva padrão; use menos em telas de texto
+  style?: object | Array<object | false | undefined>;
+}) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(t, { toValue: 1, duration: 32000, easing: Easing.inOut(Easing.sin), useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [t]);
+  const scale = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1.025, 1.025 + 0.07 * amp, 1.025] });
+  const x = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-8 * amp, 10 * amp, -8 * amp] });
+  const y = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [5 * amp, -6 * amp, 5 * amp] });
+  return (
+    <Animated.View
+      style={[
+        { transform: [{ translateX: x }, { translateY: y }, { scale }] },
+        Array.isArray(style) ? style.filter(Boolean) : style,
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+// ------------------------------------------------------------- Shine
+// O brilho diagonal que varre o botão JOGAR a cada ciclo — o “touch de
+// aço” dos CTAs de jogo pago. Vai DENTRO do botão (o pai corta com
+// overflow:hidden) e não responde a toque.
+export function Shine({ period = 2800 }: { period?: number }) {
+  const x = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(x, { toValue: 1, duration: 900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.delay(period - 900),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [x, period]);
+  const left = x.interpolate({ inputRange: [0, 1], outputRange: [-70, 360] });
+  return (
+    <View pointerEvents="none" style={sh.cage}>
+      {/* translate + rotação no MESMO transform (uma chave transform por
+          estilo — duas se sobrescreveriam) */}
+      <Animated.View style={[sh.bar, { transform: [{ translateX: left }, { rotate: '18deg' }] }]} />
+    </View>
+  );
+}
+
+const sh = StyleSheet.create({
+  cage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', borderRadius: 12 },
+  bar: {
+    position: 'absolute',
+    top: -24,
+    bottom: -24,
+    left: -14,
+    width: 26,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+});
+
 // ------------------------------------------------------------- FadeSlide
 // Entrada padrão do hub: aparece deslizando 14px para cima, com atraso.
 export function FadeSlide({
@@ -126,8 +220,9 @@ export function Pulsing({ children, style }: { children: React.ReactNode; style?
 }
 
 // ------------------------------------------------------------- MenuButton
-// Botão do hub (AGENTES, BRIEFING, AJUSTES): vidro escuro, glifo, rótulo,
-// sub-rótulo e acento na cor do agente quando ativo.
+// Botão do hub (AGENTES, ARSENAL, AJUSTES): vidro escuro, glifo, rótulo,
+// sub-rótulo e acento na cor do agente quando ativo. Etapa 21: o botão
+// AFUNDA no dedo — mola de escala no press, como os hubs dos grandes.
 export function MenuButton({
   glyph,
   label,
@@ -143,17 +238,26 @@ export function MenuButton({
   onPress: () => void;
   small?: boolean;
 }) {
+  const s = useRef(new Animated.Value(1)).current;
+  const inPress = () =>
+    Animated.spring(s, { toValue: 0.962, speed: 46, bounciness: 0, useNativeDriver: true }).start();
+  const outPress = () =>
+    Animated.spring(s, { toValue: 1, speed: 16, bounciness: 7, useNativeDriver: true }).start();
   return (
-    <Pressable
-      style={({ pressed }) => [mb.btn, small && mb.btnSmall, pressed && mb.btnP]}
-      onPress={onPress}
-    >
-      <Text style={[mb.glyph, { color: accent }]}>{glyph}</Text>
-      <View style={mb.txt}>
-        <Text style={mb.label}>{label}</Text>
-        {sub ? <Text style={mb.sub} numberOfLines={1}>{sub}</Text> : null}
-      </View>
-    </Pressable>
+    <Animated.View style={{ transform: [{ scale: s }], width: small ? 132 : 204 }}>
+      <Pressable
+        style={({ pressed }) => [mb.btn, small && mb.btnSmall, pressed && mb.btnP]}
+        onPress={onPress}
+        onPressIn={inPress}
+        onPressOut={outPress}
+      >
+        <Text style={[mb.glyph, { color: accent }]}>{glyph}</Text>
+        <View style={mb.txt}>
+          <Text style={mb.label}>{label}</Text>
+          {sub ? <Text style={mb.sub} numberOfLines={1}>{sub}</Text> : null}
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -161,7 +265,7 @@ const mb = StyleSheet.create({
   btn: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 204,
+    width: '100%',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(122,139,153,0.28)',

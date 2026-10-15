@@ -1,6 +1,6 @@
 import React from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import Game from './src/core/Game';
 import Hud from './src/ui/Hud';
@@ -67,6 +67,11 @@ class ErrorBoundary extends React.Component<
  *
  * Etapa 20 — ARSENAL & DOSSIÊ: galeria de armas com ficha técnica do
  * motor e o dossiê de carreira do operador (stats, estilo e conquistas).
+ *
+ * Etapa 21 — NAVEGAÇÃO VIVA: nenhuma tela troca "à seco" — a anterior
+ * continua montada enquanto a nova entra por cima em crossfade (com um
+ * deslize sutil e a antiga recuando em profundidade). Entrar em partida
+ * é fade puro (a montagem do motor 3D já é pesada o suficiente).
  */
 type Screen =
   | 'splash'
@@ -81,6 +86,38 @@ type Screen =
 
 export default function App() {
   const [screen, setScreen] = React.useState<Screen>('splash');
+  // Etapa 21 — transição: a tela anterior fica montada (estática, sem
+  // input) enquanto a nova entra por cima; ao fim do crossfade, sai do
+  // render. Se o jogador navegar de novo no meio, a troca recomeça do
+  // zero sem estados órfãos — cada render só enxerga `prev` + `screen`.
+  const [prev, setPrev] = React.useState<Screen | null>(null);
+  const nav = React.useRef(new Animated.Value(1)).current;
+
+  // ref espelhando a tela atual: `go` fica estável (o efeito dos eventos
+  // do HUD captura uma única instância) e ainda assim enxerga a tela certa
+  // mesmo se o jogador navegar duas vezes antes do re-render
+  const screenRef = React.useRef<Screen>(screen);
+  screenRef.current = screen;
+
+  const go = React.useCallback(
+    (next: Screen) => {
+      const cur = screenRef.current;
+      if (next === cur) return;
+      screenRef.current = next;
+      setPrev(cur);
+      setScreen(next);
+      nav.setValue(0);
+      Animated.timing(nav, {
+        toValue: 1,
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setPrev(null);
+      });
+    },
+    [nav]
+  );
   const [session, setSession] = React.useState<{
     agent: string;
     map: string;
@@ -122,7 +159,7 @@ export default function App() {
       if (e.type === 'backToSelect') {
         setSession(null);
         uiState.trainMenuOpen = false; // arsenal do treino fecha junto
-        setScreen('home');
+        go('home');
       }
     });
     return off;
@@ -140,49 +177,83 @@ export default function App() {
       weather: sessionState.weather,
       mode,
     });
-    setScreen('match');
+    go('match');
+  };
+
+  // Interpolações da transição — hubs navegam com deslize + profundidade;
+  // partida entra/sai em fade puro (montagem do motor já é pesada).
+  const isHeavy = screen === 'match' || prev === 'match';
+  const slideIn = nav.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  const pushBack = nav.interpolate({ inputRange: [0, 1], outputRange: [1.028, 1] });
+
+  // Etapa 21 — as telas viraram um switch: as duas camadas da transição
+  // renderizam por aqui (a de baixo mostra de onde se veio, a de cima
+  // para onde se vai)
+  const renderScreen = (s: Screen) => {
+    switch (s) {
+      case 'splash':
+        return <SplashScreen onDone={() => go('home')} />;
+      case 'home':
+        return (
+          <HomeScreen
+            onPlay={() => startMatch('partida')}
+            onTraining={() => startMatch('treino')}
+            onAgents={() => go('agents')}
+            onArsenal={() => go('arsenal')}
+            onCareer={() => go('career')}
+            onSettings={() => go('settings')}
+            onMissions={() => go('missions')}
+            onRank={() => go('rank')}
+          />
+        );
+      case 'agents':
+        return <AgentsScreen onBack={() => go('home')} />;
+      // Etapa 20 — os dois módulos novos do hub: a galeria de armas e o
+      // dossiê de carreira do operador (leitura pura do perfil)
+      case 'arsenal':
+        return <ArsenalScreen onBack={() => go('home')} />;
+      case 'career':
+        return <CareerScreen onBack={() => go('home')} />;
+      case 'settings':
+        return <SettingsScreen onBack={() => go('home')} />;
+      case 'missions':
+        return <MissionsScreen onBack={() => go('home')} />;
+      case 'rank':
+        return <RankScreen onBack={() => go('home')} />;
+      case 'match':
+        return session ? (
+          <>
+            <Game key={`${session.agent}-${session.map}-${session.weather}-${session.mode}`} />
+            <Hud />
+          </>
+        ) : null;
+    }
   };
 
   return (
     <ErrorBoundary>
       <View style={styles.root}>
-        {screen === 'splash' && (
-          <SplashScreen onDone={() => setScreen('home')} />
+        {/* Etapa 21 — camada de baixo: a tela de onde se veio, recuada em
+            profundidade e muda durante o crossfade; desmonta ao terminar */}
+        {prev !== null && (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.layer, !isHeavy && { transform: [{ scale: pushBack }] }]}
+          >
+            {renderScreen(prev)}
+          </Animated.View>
         )}
 
-        {screen === 'home' && (
-          <HomeScreen
-            onPlay={() => startMatch('partida')}
-            onTraining={() => startMatch('treino')}
-            onAgents={() => setScreen('agents')}
-            onArsenal={() => setScreen('arsenal')}
-            onCareer={() => setScreen('career')}
-            onSettings={() => setScreen('settings')}
-            onMissions={() => setScreen('missions')}
-            onRank={() => setScreen('rank')}
-          />
-        )}
-
-        {screen === 'agents' && <AgentsScreen onBack={() => setScreen('home')} />}
-
-        {/* Etapa 20 — os dois módulos novos do hub: a galeria de armas e o
-            dossiê de carreira do operador (leitura pura do perfil) */}
-        {screen === 'arsenal' && <ArsenalScreen onBack={() => setScreen('home')} />}
-
-        {screen === 'career' && <CareerScreen onBack={() => setScreen('home')} />}
-
-        {screen === 'settings' && <SettingsScreen onBack={() => setScreen('home')} />}
-
-        {screen === 'missions' && <MissionsScreen onBack={() => setScreen('home')} />}
-
-        {screen === 'rank' && <RankScreen onBack={() => setScreen('home')} />}
-
-        {screen === 'match' && session && (
-          <>
-            <Game key={`${session.agent}-${session.map}-${session.weather}-${session.mode}`} />
-            <Hud />
-          </>
-        )}
+        {/* camada de cima: a tela atual — entra em fade (+ deslize nos hubs) */}
+        <Animated.View
+          style={[
+            styles.layer,
+            { opacity: nav },
+            !isHeavy && { transform: [{ translateY: slideIn }] },
+          ]}
+        >
+          {renderScreen(screen)}
+        </Animated.View>
 
         {/* som + haptics dos eventos do jogo (sempre montado) */}
         <AudioBridge />
@@ -194,6 +265,9 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: CSS.BG },
+  // Etapa 21 — as duas camadas da transição ocupam a tela inteira; a
+  // tela em si (filha da camada) continua flex:1 como sempre foi
+  layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   errRoot: { flex: 1, backgroundColor: CSS.BG, padding: 24, justifyContent: 'center' },
   errTitle: {
     color: CSS.MAGENTA,

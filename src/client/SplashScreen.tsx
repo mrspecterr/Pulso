@@ -2,21 +2,34 @@
 // teal, o logo respirando, o equalizador vivo e o convite: TOCAR PARA
 // ENTRAR. O toque é intencional (dá tempo de carregar o perfil do storage
 // enquanto o jogador lê o título).
+//
+// Etapa 21 — ENTRADA CINEMATOGRÁFICA: um único driver (0→1, 950ms) e cada
+// elemento acorda na sua janela — fundo, logo (com peso de assinatura:
+// entra maior e assenta), tagline, equalizer, convite, rodapé. Nada
+// aparece “de uma vez”: a tela MONTA a si mesma.
 import React, { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CSS } from '../config/constants';
 import { TITLE_BG } from './art';
-import { Equalizer, MONO } from './parts';
-import { SFX } from '../game/Audio';
+import { Equalizer, MONO, tap } from './parts';
 import { getProfile } from './profile';
 
 export default function SplashScreen({ onDone }: { onDone: () => void }) {
+  // entrada em sequência (Etapa 21) — um driver, muitas janelas
+  const enter = useRef(new Animated.Value(0)).current;
   // piscar do convite + respiração do logo
   const blink = useRef(new Animated.Value(0.35)).current;
   const breathe = useRef(new Animated.Value(1)).current;
   const out = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    const e = Animated.timing(enter, {
+      toValue: 1,
+      duration: 950,
+      delay: 150,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
     const a = Animated.loop(
       Animated.sequence([
         Animated.timing(blink, { toValue: 1, duration: 650, useNativeDriver: true }),
@@ -29,16 +42,27 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         Animated.timing(breathe, { toValue: 1, duration: 1500, useNativeDriver: true }),
       ])
     );
+    e.start();
     a.start();
     b.start();
     return () => {
+      e.stop();
       a.stop();
       b.stop();
     };
-  }, [blink, breathe]);
+  }, [enter, blink, breathe]);
+
+  // as janelas da entrada (frações do driver 0→1)
+  const inBg = enter.interpolate({ inputRange: [0, 0.42], outputRange: [0, 1] });
+  const inLogo = enter.interpolate({ inputRange: [0.1, 0.52], outputRange: [0, 1] });
+  const logoSettle = enter.interpolate({ inputRange: [0.1, 0.66], outputRange: [1.14, 1] });
+  const inTag = enter.interpolate({ inputRange: [0.34, 0.68], outputRange: [0, 1] });
+  const inEq = enter.interpolate({ inputRange: [0.44, 0.78], outputRange: [0, 1] });
+  const inTap = enter.interpolate({ inputRange: [0.58, 0.88], outputRange: [0, 1] });
+  const inFoot = enter.interpolate({ inputRange: [0.66, 1], outputRange: [0, 1] });
 
   const go = () => {
-    SFX.play('ui', 0.8);
+    tap(true);
     Animated.timing(out, { toValue: 0, duration: 260, useNativeDriver: true }).start(onDone);
   };
 
@@ -46,30 +70,50 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <Animated.View style={[sp.root, { opacity: out }]}>
-      <Animated.Image source={TITLE_BG} style={[sp.bg, { opacity: 0.9, transform: [{ scale: breathe }] }]} resizeMode="cover" />
+      {/* o fundo acorda primeiro — deixa o jogador aterrissar na estação */}
+      <Animated.View style={[sp.fill, { opacity: inBg }]}>
+        <Animated.Image
+          source={TITLE_BG}
+          style={[sp.bg, { opacity: 0.9, transform: [{ scale: breathe }] }]}
+          resizeMode="cover"
+        />
+      </Animated.View>
       <View style={sp.shade} />
 
       <View style={sp.center}>
-        <Animated.Text style={[sp.logo, { transform: [{ scale: breathe }] }]}>
-          PULSO
-        </Animated.Text>
-        <Text style={sp.tag}>FPS TÁTICO DE RESSONÂNCIA</Text>
-        <Equalizer width={210} height={22} />
+        {/* o logo entra com peso (maior e assenta) e CONTINUA respirando
+            dentro — duas camadas: assentada por fora, fôlego por dentro */}
+        <Animated.View style={{ opacity: inLogo, transform: [{ scale: logoSettle }] }}>
+          <Animated.Text style={[sp.logo, { transform: [{ scale: breathe }] }]}>
+            PULSO
+          </Animated.Text>
+        </Animated.View>
+        <Animated.View style={{ opacity: inTag }}>
+          <Text style={sp.tag}>FPS TÁTICO DE RESSONÂNCIA</Text>
+        </Animated.View>
+        <Animated.View style={{ opacity: inEq, marginTop: 14 }}>
+          <Equalizer width={210} height={22} />
+        </Animated.View>
       </View>
 
       <Pressable style={sp.touch} onPress={go}>
-        <Animated.Text style={[sp.tap, { opacity: blink }]}>TOCAR PARA ENTRAR</Animated.Text>
+        <Animated.View style={{ opacity: inTap }}>
+          <Animated.Text style={[sp.tap, { opacity: blink }]}>TOCAR PARA ENTRAR</Animated.Text>
+        </Animated.View>
       </Pressable>
 
-      <Text style={sp.foot}>
-        v0.17 · carreira de {p.career.matches} partida{p.career.matches === 1 ? '' : 's'} registrada
-      </Text>
+      <Animated.View style={{ opacity: inFoot }}>
+        <Text style={sp.foot}>
+          v0.21 · carreira de {p.career.matches} partida{p.career.matches === 1 ? '' : 's'} registrada
+        </Text>
+      </Animated.View>
     </Animated.View>
   );
 }
 
 const sp = StyleSheet.create({
   root: { flex: 1, backgroundColor: CSS.BG },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   bg: { position: 'absolute', width: '100%', height: '100%' },
   shade: {
     position: 'absolute',

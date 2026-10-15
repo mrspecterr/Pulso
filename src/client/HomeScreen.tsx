@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AGENTS, CSS, ROUND, type AgentId } from '../config/constants';
 import { MAPS, WEATHERS, WEATHER_ORDER, type MapId, type WeatherId } from '../config/maps';
 import { ART } from './art';
-import { FadeSlide, MenuButton, MONO, Pulsing, XpBar } from './parts';
+import { FadeSlide, KenBurns, MenuButton, MONO, Pulsing, Shine, tap, XpBar } from './parts';
 import {
   achievementViews,
   careerXp,
@@ -20,7 +20,6 @@ import {
 } from './profile';
 import { PLACEMENTS, tierAt, tierLabel } from './ranked';
 import { sessionState } from '../core/state';
-import { SFX } from '../game/Audio';
 
 const MAP_ORDER: MapId[] = ['SUBSOLO', 'PALCO', 'ESTUDIO'];
 
@@ -71,7 +70,7 @@ export default function HomeScreen({
     const i = MAP_ORDER.indexOf(sessionState.map);
     const next = MAP_ORDER[(i + 1) % MAP_ORDER.length] as MapId;
     sessionState.map = next;
-    SFX.play('ui', 0.45);
+    tap();
     saveProfile();
     setMapTick((t) => t + 1); // re-render com o mapa novo
   };
@@ -82,7 +81,7 @@ export default function HomeScreen({
     const i = WEATHER_ORDER.indexOf(sessionState.weather);
     const next = WEATHER_ORDER[(i + 1) % WEATHER_ORDER.length] as WeatherId;
     sessionState.weather = next;
-    SFX.play('ui', 0.45);
+    tap();
     saveProfile();
     setWxTick((t) => t + 1);
   };
@@ -90,8 +89,11 @@ export default function HomeScreen({
 
   return (
     <View style={hs.root}>
-      {/* splash art do operador — o herói do lobby */}
-      <Image key={agent} source={ART[agent]} style={hs.art} resizeMode="cover" />
+      {/* splash art do operador — o herói do lobby. Etapa 21: a arte
+          DERIVA (Ken Burns) — o hub nunca está parado */}
+      <KenBurns style={hs.art}>
+        <Image key={agent} source={ART[agent]} style={hs.artInner} resizeMode="cover" />
+      </KenBurns>
       {/* leitura: escurece a esquerda (menus) e o rodapé */}
       <LinearGradient
         colors={['rgba(7,10,15,0.96)', 'rgba(7,10,15,0.78)', 'rgba(7,10,15,0.12)']}
@@ -112,7 +114,7 @@ export default function HomeScreen({
           {/* Etapa 20: o cartão de perfil é a porta do DOSSIÊ DO OPERADOR */}
           <Pressable
             style={({ pressed }) => [hs.profile, pressed && hs.profileP]}
-            onPress={() => { SFX.play('ui', 0.45); onCareer(); }}
+            onPress={() => { tap(); onCareer(); }}
           >
             <View style={[hs.avatar, { borderColor: A.corCss }]}>
               <Text style={[hs.avatarTxt, { color: A.corCss }]}>{agent[0]}</Text>
@@ -133,10 +135,10 @@ export default function HomeScreen({
         <FadeSlide delay={140}>
           <View style={hs.topBtns}>
             {/* briefing de missão — como jogar, a um toque do topo */}
-            <Pressable style={hs.gear} onPress={() => { SFX.play('ui', 0.45); setBriefing(true); }}>
+            <Pressable style={hs.gear} onPress={() => { tap(); setBriefing(true); }}>
               <Text style={hs.gearGlyph}>?</Text>
             </Pressable>
-            <Pressable style={hs.gear} onPress={() => { SFX.play('ui', 0.45); onSettings(); }}>
+            <Pressable style={hs.gear} onPress={() => { tap(); onSettings(); }}>
               <Text style={hs.gearGlyph}>⚙</Text>
             </Pressable>
           </View>
@@ -152,7 +154,7 @@ export default function HomeScreen({
             label="AGENTES"
             sub={`operador atual: ${agent}`}
             accent={A.corCss}
-            onPress={() => { SFX.play('ui', 0.45); onAgents(); }}
+            onPress={() => { tap(); onAgents(); }}
           />
         </FadeSlide>
         <FadeSlide delay={300}>
@@ -161,7 +163,7 @@ export default function HomeScreen({
             label="ARSENAL"
             sub="armas · trajes · economia"
             accent="#FFD37A"
-            onPress={() => { SFX.play('ui', 0.45); onArsenal(); }}
+            onPress={() => { tap(); onArsenal(); }}
           />
         </FadeSlide>
         <FadeSlide delay={380}>
@@ -170,7 +172,7 @@ export default function HomeScreen({
             label="MISSÕES"
             sub={`diárias ${missionsDone}/${missions.length} · conquistas ${achDone}/${achievements.length}`}
             accent={missionsDone < 3 ? '#FFD37A' : CSS.TEAL}
-            onPress={() => { SFX.play('ui', 0.45); onMissions(); }}
+            onPress={() => { tap(); onMissions(); }}
           />
         </FadeSlide>
         <FadeSlide delay={460}>
@@ -179,7 +181,7 @@ export default function HomeScreen({
             label="PATENTE"
             sub={rkSub}
             accent={rkTier.corCss}
-            onPress={() => { SFX.play('ui', 0.45); onRank(); }}
+            onPress={() => { tap(); onRank(); }}
           />
         </FadeSlide>
         <FadeSlide delay={540}>
@@ -187,7 +189,7 @@ export default function HomeScreen({
             glyph="⚙"
             label="AJUSTES"
             sub="sens · gráficos · som"
-            onPress={() => { SFX.play('ui', 0.45); onSettings(); }}
+            onPress={() => { tap(); onSettings(); }}
           />
         </FadeSlide>
       </View>
@@ -225,8 +227,10 @@ export default function HomeScreen({
           <Pulsing>
             <Pressable
               style={({ pressed }) => [hs.play, pressed && hs.playP]}
-              onPress={() => { SFX.play('ui', 0.8); onPlay(); }}
+              onPress={() => { tap(true); onPlay(); }}
             >
+              {/* Etapa 21 — o brilho de aço varrendo o CTA */}
+              <Shine />
               <Text style={hs.playTxt}>JOGAR</Text>
               <Text style={hs.playSub}>
                 PARTIDA 5v5 · PRIMEIRO A {ROUND.ROUNDS_TO_WIN}
@@ -239,7 +243,7 @@ export default function HomeScreen({
         <FadeSlide delay={620}>
           <Pressable
             style={({ pressed }) => [hs.trainBtn, pressed && hs.trainBtnP]}
-            onPress={() => { SFX.play('ui', 0.6); onTraining(); }}
+            onPress={() => { tap(); onTraining(); }}
           >
             <Text style={hs.trainTxt}>▸ CAMPO DE PROVAS</Text>
             <Text style={hs.trainSub}>TREINO LIVRE · dB INFINITO · ARSENAL ABERTO</Text>
@@ -255,7 +259,7 @@ export default function HomeScreen({
         <Text style={hs.footCareer}>
           {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
         </Text>
-        <Text style={hs.footVer}>v0.20 · mrspecterr/Pulso</Text>
+        <Text style={hs.footVer}>v0.21 · mrspecterr/Pulso</Text>
       </View>
 
       {/* ---- briefing: como jogar ---- */}
@@ -301,7 +305,7 @@ export default function HomeScreen({
                 ou sob SONAR.
               </Text>
             </ScrollView>
-            <Pressable style={hs.briefClose} onPress={() => { SFX.play('ui', 0.45); setBriefing(false); }}>
+            <Pressable style={hs.briefClose} onPress={() => { tap(); setBriefing(false); }}>
               <Text style={hs.briefCloseTxt}>ENTENDIDO</Text>
             </Pressable>
           </View>
@@ -314,6 +318,8 @@ export default function HomeScreen({
 const hs = StyleSheet.create({
   root: { flex: 1, backgroundColor: CSS.BG },
   art: { position: 'absolute', width: '100%', height: '100%' },
+  // a arte dentro da jaula do Ken Burns preenche a jaula inteira
+  artInner: { width: '100%', height: '100%' },
 
   // -- topo --
   topRow: {
@@ -426,6 +432,7 @@ const hs = StyleSheet.create({
     paddingHorizontal: 46,
     paddingVertical: 11,
     alignItems: 'center',
+    overflow: 'hidden', // Etapa 21 — corta o brilho do Shine na borda
   },
   playP: { backgroundColor: 'rgba(45,226,198,0.4)' },
   playTxt: {

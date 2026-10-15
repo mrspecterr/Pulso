@@ -8,10 +8,9 @@ import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { LinearGradient } from 'expo-linear-gradient';
 import { AGENTS, CSS, type AgentId } from '../config/constants';
 import { ART, TITLE_BG } from './art';
-import { FadeSlide, MONO } from './parts';
+import { FadeSlide, KenBurns, MONO, tap } from './parts';
 import { getProfile, saveProfile } from './profile';
 import { sessionState } from '../core/state';
-import { SFX } from '../game/Audio';
 
 // Etapa 16: VIBRATO entra na galeria (4 operadores)
 const ORDER: AgentId[] = ['MUDO', 'ECO', 'GRAVE', 'VIBRATO'];
@@ -40,23 +39,26 @@ export default function AgentsScreen({ onBack }: { onBack: () => void }) {
   }, [sel, fade]);
 
   const pick = (id: AgentId) => {
-    if (sel !== id) SFX.play('ui', 0.45);
+    if (sel !== id) tap();
     setSel(id);
   };
 
   const confirm = () => {
     sessionState.agent = sel; // o motor lê daqui ao montar a partida
     saveProfile();
-    SFX.play('ui', 0.8);
+    tap(true);
     onBack();
   };
 
   return (
     <View style={ag.root}>
-      {/* base neutra + arte do operador com crossfade */}
-      <Image source={TITLE_BG} style={ag.art} resizeMode="cover" />
+      {/* base neutra + arte do operador com crossfade. Etapa 21: a base
+          deriva em Ken Burns sutil — a galeria também nunca está parada */}
+      <KenBurns style={ag.art} amp={0.6}>
+        <Image source={TITLE_BG} style={ag.artInner} resizeMode="cover" />
+      </KenBurns>
       <Animated.View style={[ag.artLayer, { opacity: fade }]}>
-        <Image source={ART[sel]} style={ag.art} resizeMode="cover" />
+        <Image source={ART[sel]} style={ag.artInner} resizeMode="cover" />
       </Animated.View>
       <LinearGradient
         colors={['rgba(7,10,15,0.97)', 'rgba(7,10,15,0.82)', 'rgba(7,10,15,0.10)']}
@@ -69,7 +71,7 @@ export default function AgentsScreen({ onBack }: { onBack: () => void }) {
       {/* ---- topo: voltar · título ---- */}
       <View style={ag.topRow}>
         <FadeSlide delay={60}>
-          <Pressable style={ag.back} onPress={() => { SFX.play('ui', 0.45); onBack(); }}>
+          <Pressable style={ag.back} onPress={() => { tap(); onBack(); }}>
             <Text style={ag.backTxt}>◂ HUB</Text>
           </Pressable>
         </FadeSlide>
@@ -157,6 +159,7 @@ const ag = StyleSheet.create({
   root: { flex: 1, backgroundColor: CSS.BG },
   art: { position: 'absolute', width: '100%', height: '100%' },
   artLayer: { position: 'absolute', width: '100%', height: '100%' },
+  artInner: { width: '100%', height: '100%' },
 
   topRow: {
     position: 'absolute',
