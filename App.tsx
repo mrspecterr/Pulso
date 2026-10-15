@@ -8,6 +8,8 @@ import AudioBridge from './src/core/AudioBridge';
 import SplashScreen from './src/client/SplashScreen';
 import HomeScreen from './src/client/HomeScreen';
 import AgentsScreen from './src/client/AgentsScreen';
+import ArsenalScreen from './src/client/ArsenalScreen';
+import CareerScreen from './src/client/CareerScreen';
 import SettingsScreen from './src/client/SettingsScreen';
 import MissionsScreen from './src/client/MissionsScreen';
 import RankScreen from './src/client/RankScreen';
@@ -62,8 +64,20 @@ class ErrorBoundary extends React.Component<
  * real, carreira e artes dos operadores), galeria de agentes, ajustes —
  * tudo persistido no perfil do jogador (AsyncStorage). A partida nasce
  * do hub com o operador e o mapa escolhidos.
+ *
+ * Etapa 20 — ARSENAL & DOSSIÊ: galeria de armas com ficha técnica do
+ * motor e o dossiê de carreira do operador (stats, estilo e conquistas).
  */
-type Screen = 'splash' | 'home' | 'agents' | 'settings' | 'missions' | 'rank' | 'match';
+type Screen =
+  | 'splash'
+  | 'home'
+  | 'agents'
+  | 'arsenal'
+  | 'career'
+  | 'settings'
+  | 'missions'
+  | 'rank'
+  | 'match';
 
 export default function App() {
   const [screen, setScreen] = React.useState<Screen>('splash');
@@ -141,6 +155,8 @@ export default function App() {
             onPlay={() => startMatch('partida')}
             onTraining={() => startMatch('treino')}
             onAgents={() => setScreen('agents')}
+            onArsenal={() => setScreen('arsenal')}
+            onCareer={() => setScreen('career')}
             onSettings={() => setScreen('settings')}
             onMissions={() => setScreen('missions')}
             onRank={() => setScreen('rank')}
@@ -148,6 +164,12 @@ export default function App() {
         )}
 
         {screen === 'agents' && <AgentsScreen onBack={() => setScreen('home')} />}
+
+        {/* Etapa 20 — os dois módulos novos do hub: a galeria de armas e o
+            dossiê de carreira do operador (leitura pura do perfil) */}
+        {screen === 'arsenal' && <ArsenalScreen onBack={() => setScreen('home')} />}
+
+        {screen === 'career' && <CareerScreen onBack={() => setScreen('home')} />}
 
         {screen === 'settings' && <SettingsScreen onBack={() => setScreen('home')} />}
 

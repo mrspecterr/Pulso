@@ -30,6 +30,10 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 
 ## 🧩 Sistemas do jogo
 
+- **Arsenal & Dossiê (v0.20)** — o hub fecha as contas do jogador:
+  - **ARSENAL** — a galeria de armas com **arte ilustrada por arma** (a mesma direção das artes dos operadores): STACCATO, GLISSANDO e LEGATO com a **ficha técnica real do motor** — dano por salvo (corpo/cabeça), cadência em rpm, pente, recarga, dispersão, **DPS teórico** e quantos disparos fecham um operador — além das barras comparativas e uma nota de campo por arma; os **TRAJES REFORÇADOS** têm vitrine própria (absorção e preço) e o bloco **A CONTA DA RODADA** documenta a economia de verdade (o texto antigo do briefing prometia +300 de plantio que o código não pagava — corrigido)
+  - **DOSSIÊ DO OPERADOR** — o cartão de perfil do hub virou porta de entrada: **grade com 12 estatísticas de carreira** (partidas, vitórias, aproveitamento, K/D, abates, quedas, média, recorde, headshots, precisão, plantios, imaculadas), **ETIQUETAS DE ESTILO** que o jogo deriva dos próprios números (VIRTUOSE, CIRÚRGICO, AFINADO, SEMEADOR, ÍNTEGRO, VETERANO, IMBATÍVEL — até 4 por retrato), patente da temporada resumida com progresso e as **próximas 3 conquistas** com barras honestas
+  - **Hub reorganizado** — BRIEFING subiu para a barra do topo (ao lado da engrenagem) e a coluna de módulos segue com cinco degraus: AGENTES · ARSENAL · MISSÕES · PATENTE · AJUSTES
 - **Ranking sazonal (v0.19)** — a patente medida na própria física do jogo, o decibel:
   - **Escala dB 30–120** — do sussurro ao limiar da dor (que se chama PULSO); começa em 60 (MEZZO III), 3 partidas de **calibração** com passos largos abrem a temporada
   - **A escada da dinâmica musical** — SILENTE `pp` → PIANO `p` → MEZZO `mp` → FORTE `mf` → FORTISSIMO `f` → DIAPASÃO `ff` → **PULSO `fff`** (o topo único, exatamente 120 dB); três divisões por patente (III→II→I)
@@ -52,7 +56,7 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
   - **CAMPO DE PROVAS** — treino livre direto do hub: **dB infinito**, **ARSENAL aberto a qualquer momento** (troque de arma no meio da ação), sem rodadas nem placar — os 5 DIRAC e o esquadrão seguem em campo, bonecos de aquecimento no spawn e **respawn com kit recarregado** quando você cai
 - **Cliente de jogo real (v0.15)** — entrada, hub e telas no padrão dos grandes (Free Fire, Wild Rift, Mobile Legends):
   - **Splash de entrada** — a estação vazia na neblina, o logo respirando e o equalizador de ressonância vivo; toque para entrar (o perfil carrega nesse tempo)
-  - **HUB** — a **splash art do operador selecionado** dominando a tela (arte ilustrada por personagem), perfil com **nível/XP e patente reais** (RECRUTA → LENDA DO SUBSOLO — sobem jogando), carreira no rodapé, coluna de módulos (AGENTES · BRIEFING · AJUSTES), seletor de mapa e o botão **JOGAR** respirando no centro
+  - **HUB** — a **splash art do operador selecionado** dominando a tela (arte ilustrada por personagem), perfil com **nível/XP e patente reais** (RECRUTA → LENDA DO SUBSOLO — sobem jogando) que abre o **dossiê de carreira**, carreira no rodapé, coluna de módulos (AGENTES · ARSENAL · MISSÕES · PATENTE · AJUSTES), seletor de mapa e o botão **JOGAR** respirando no centro
   - **Galeria de operadores** — cada CORO com arte própria em destaque, crossfade ao trocar, dossiê com bio, Traços e papel tático
   - **Ajustes** — sensibilidade (BAIXA · PADRÃO · ALTA · MÁXIMA), gráficos, áudio, **vibração** e zerar dados — tudo persistido
   - **Perfil persistente (AsyncStorage)** — agente e mapa favoritos, configurações e carreira (partidas, vitórias, abates, headshots, precisão, recorde de abates) sobrevivem ao fechar o app
@@ -99,7 +103,8 @@ Cada release nova (tag `vX.Y.Z`) gera o APK automaticamente via GitHub Actions �
 - [x] **17** — Frente climática & progressão: clima por partida (NOITE/NEBLINA com impacto no combate), 3º Traço por kit (SURDINA/MARCA/POSTURA/ACORDE), missões diárias e 10 conquistas
 - [x] **18** — Terceiro mapa ESTÚDIO: complexo de gravação fechado por salas, console na MISTURA e o CONTROLE — caixa de vidro entre os sites que deixa VER mas corta bala e visão dos DIRACs
 - [x] **19** — Ranking sazonal: patente em decibéis (30–120) com calibração, divisões e a escada da dinâmica musical (SILENTE→PULSO), tela de patente no hub e cartão de dB no fim da partida
-- [ ] **20+** — modo espectador de replay, quarto mapa, arsenal vivo
+- [x] **20** — Arsenal & Dossiê: galeria de armas com arte por arma e ficha técnica real do motor (DPS, salvas, economia), dossiê do operador com 12 stats de carreira, etiquetas de estilo derivadas e progresso de conquistas
+- [ ] **21+** — modo espectador de replay, quarto mapa, arsenal vivo (mais armas por classe)
 
 ## 🔧 Como o APK é feito (automático)
 

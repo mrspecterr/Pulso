@@ -28,6 +28,8 @@ export default function HomeScreen({
   onPlay,
   onTraining,
   onAgents,
+  onArsenal,
+  onCareer,
   onSettings,
   onMissions,
   onRank,
@@ -35,6 +37,8 @@ export default function HomeScreen({
   onPlay: () => void;
   onTraining: () => void;
   onAgents: () => void;
+  onArsenal: () => void;
+  onCareer: () => void;
   onSettings: () => void;
   onMissions: () => void;
   onRank: () => void;
@@ -102,31 +106,45 @@ export default function HomeScreen({
         style={hs.art}
       />
 
-      {/* ---- topo: perfil (esq) · engrenagem (dir) ---- */}
+      {/* ---- topo: perfil (esq, abre o dossiê) · briefing · engrenagem (dir) ---- */}
       <View style={hs.topRow}>
         <FadeSlide delay={80}>
-          <View style={hs.profile}>
+          {/* Etapa 20: o cartão de perfil é a porta do DOSSIÊ DO OPERADOR */}
+          <Pressable
+            style={({ pressed }) => [hs.profile, pressed && hs.profileP]}
+            onPress={() => { SFX.play('ui', 0.45); onCareer(); }}
+          >
             <View style={[hs.avatar, { borderColor: A.corCss }]}>
               <Text style={[hs.avatarTxt, { color: A.corCss }]}>{agent[0]}</Text>
             </View>
             <View>
-              <Text style={hs.profileName}>OPERADOR</Text>
+              <View style={hs.profileNameRow}>
+                <Text style={hs.profileName}>OPERADOR</Text>
+                <Text style={hs.profileArrow}>▸</Text>
+              </View>
               <Text style={hs.profileRank}>
                 NV {level} · {rankTitle(level)}
               </Text>
               <XpBar into={into} need={need} width={124} />
             </View>
-          </View>
+          </Pressable>
         </FadeSlide>
 
         <FadeSlide delay={140}>
-          <Pressable style={hs.gear} onPress={() => { SFX.play('ui', 0.45); onSettings(); }}>
-            <Text style={hs.gearGlyph}>⚙</Text>
-          </Pressable>
+          <View style={hs.topBtns}>
+            {/* briefing de missão — como jogar, a um toque do topo */}
+            <Pressable style={hs.gear} onPress={() => { SFX.play('ui', 0.45); setBriefing(true); }}>
+              <Text style={hs.gearGlyph}>?</Text>
+            </Pressable>
+            <Pressable style={hs.gear} onPress={() => { SFX.play('ui', 0.45); onSettings(); }}>
+              <Text style={hs.gearGlyph}>⚙</Text>
+            </Pressable>
+          </View>
         </FadeSlide>
       </View>
 
-      {/* ---- coluna esquerda: módulos ---- */}
+      {/* ---- coluna esquerda: módulos (Etapa 20: ARSENAL entra, BRIEFING
+           subiu pro topo — a coluna continua com 5 degraus) ---- */}
       <View style={hs.menuCol}>
         <FadeSlide delay={220}>
           <MenuButton
@@ -139,10 +157,11 @@ export default function HomeScreen({
         </FadeSlide>
         <FadeSlide delay={300}>
           <MenuButton
-            glyph="☰"
-            label="BRIEFING"
-            sub="como jogar PULSO"
-            onPress={() => { SFX.play('ui', 0.45); setBriefing(true); }}
+            glyph="⌖"
+            label="ARSENAL"
+            sub="armas · trajes · economia"
+            accent="#FFD37A"
+            onPress={() => { SFX.play('ui', 0.45); onArsenal(); }}
           />
         </FadeSlide>
         <FadeSlide delay={380}>
@@ -236,7 +255,7 @@ export default function HomeScreen({
         <Text style={hs.footCareer}>
           {c.matches} partidas · {c.wins} vitórias · {c.kills} abates · recorde {c.bestKills}
         </Text>
-        <Text style={hs.footVer}>v0.19 · mrspecterr/Pulso</Text>
+        <Text style={hs.footVer}>v0.20 · mrspecterr/Pulso</Text>
       </View>
 
       {/* ---- briefing: como jogar ---- */}
@@ -266,7 +285,7 @@ export default function HomeScreen({
               </Text>
               <Text style={hs.briefH}>ECONOMIA</Text>
               <Text style={hs.briefP}>
-                Comece com 800 dB. Abate +200 · plantar +300 · vitória +2900 · derrota
+                Comece com 800 dB. Abate +200 · vitória +2900 · derrota
                 +1900. Perder a rodada também custa a arma na mão — às vezes vale poupar
                 para comprar o LEGATO na rodada seguinte.
               </Text>
@@ -307,6 +326,14 @@ const hs = StyleSheet.create({
     alignItems: 'flex-start',
   },
   profile: { flexDirection: 'row', alignItems: 'center' },
+  profileP: { opacity: 0.85 },
+  profileNameRow: { flexDirection: 'row', alignItems: 'center' },
+  profileArrow: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: CSS.TEXT_DIM,
+    marginLeft: 5,
+  },
   avatar: {
     width: 38,
     height: 38,
@@ -329,8 +356,10 @@ const hs = StyleSheet.create({
     backgroundColor: 'rgba(11,15,20,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
   },
   gearGlyph: { fontFamily: MONO, fontSize: 17, color: '#CFE2EA' },
+  topBtns: { flexDirection: 'row' },
 
   // -- coluna esquerda --
   menuCol: {
